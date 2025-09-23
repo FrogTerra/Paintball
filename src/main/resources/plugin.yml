@@ -1,0 +1,4 @@
+name: Paintball
+version: '0.0.1'
+main: me.FrogTerra.paintball.Paintball
+api-version: '1.21'
