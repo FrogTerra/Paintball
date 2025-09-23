@@ -34,6 +34,12 @@ public final class Arena {
     @SerializedName("freeForAllSpawns")
     private List<Location> freeForAllSpawns = new ArrayList<>();
 
+    // Flag spawn points for Flag Rush gamemode
+    @SerializedName("redFlagSpawns")
+    private List<Location> redFlagSpawns = new ArrayList<>();
+    @SerializedName("blueFlagSpawns")
+    private List<Location> blueFlagSpawns = new ArrayList<>();
+
     // Arena boundaries
     @SerializedName("minBoundary")
     private Location minBoundary;
@@ -64,6 +70,17 @@ public final class Arena {
     }
 
     /**
+     * Get flag spawn points for a specific team
+     */
+    public List<Location> getFlagSpawns(final ArenaTeam team) {
+        return switch (team) {
+            case RED -> this.redFlagSpawns;
+            case BLUE -> this.blueFlagSpawns;
+            case FREE_FOR_ALL -> new ArrayList<>(); // No flags in FFA
+        };
+    }
+
+    /**
      * Add a spawn point for a team
      */
     public void addSpawn(final ArenaTeam team, final Location location) {
@@ -74,6 +91,16 @@ public final class Arena {
     }
 
     /**
+     * Add a flag spawn point for a team
+     */
+    public void addFlagSpawn(final ArenaTeam team, final Location location) {
+        // Create location without world reference for storage
+        final Location spawnLocation = new Location(null, location.getX(), location.getY(), location.getZ(),
+                location.getYaw(), location.getPitch());
+        this.getFlagSpawns(team).add(spawnLocation);
+    }
+
+    /**
      * Clear all spawn points for a team
      */
     public void clearSpawns(final ArenaTeam team) {
@@ -81,11 +108,24 @@ public final class Arena {
     }
 
     /**
+     * Clear all flag spawn points for a team
+     */
+    public void clearFlagSpawns(final ArenaTeam team) {
+        this.getFlagSpawns(team).clear();
+    }
+
+    /**
      * Get total number of spawn points
      */
     public int getTotalSpawns() {
-        return this.redSpawns.size() + this.blueSpawns.size() +
-                this.freeForAllSpawns.size();
+        return this.redSpawns.size() + this.blueSpawns.size() + this.freeForAllSpawns.size();
+    }
+
+    /**
+     * Get total number of flag spawn points
+     */
+    public int getTotalFlagSpawns() {
+        return this.redFlagSpawns.size() + this.blueFlagSpawns.size();
     }
 
     /**
@@ -129,8 +169,10 @@ public final class Arena {
      */
     private boolean hasRequiredSpawns(final Gamemode gameMode) {
         return switch (gameMode) {
-            case TEAM_DEATHMATCH -> this.redSpawns.size() >= 2 && this.blueSpawns.size() >= 2;
+            case TEAM_DEATHMATCH, JUGGERNAUT -> this.redSpawns.size() >= 2 && this.blueSpawns.size() >= 2;
             case FREE_FOR_ALL -> this.freeForAllSpawns.size() >= 2;
+            case FLAG_RUSH -> this.redSpawns.size() >= 2 && this.blueSpawns.size() >= 2 && 
+                             this.redFlagSpawns.size() >= 1 && this.blueFlagSpawns.size() >= 1;
         };
     }
 
