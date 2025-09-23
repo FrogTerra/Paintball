@@ -9,9 +9,13 @@ import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
+import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
+import com.sk89q.worldedit.extent.clipboard.io.BuiltInClipboardFormat;
+import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -144,6 +148,70 @@ public final class ArenaManager {
     }
 
     /**
+     * Save arena schematic including armor stands from editor world
+     */
+    public CompletableFuture<Boolean> saveArenaSchematic(final String arenaName, final World sourceWorld) {
+        return CompletableFuture.supplyAsync(() -> {
+            final Arena arena = this.arenas.get(arenaName.toLowerCase());
+            if (arena == null) {
+                this.plugin.logError("Arena not found for saving: " + arenaName);
+                return false;
+            }
+
+            final File schematicFile = new File(this.schematicsFolder, arena.getSchematicFile());
+            
+            try {
+                // Ensure schematics directory exists
+                if (!this.schematicsFolder.exists()) {
+                    this.schematicsFolder.mkdirs();
+                }
+
+                // Calculate the region to save (expand around center to capture all builds)
+                final BlockVector3 center = BlockVector3.at(0, 100, 0);
+                final BlockVector3 min = center.subtract(200, 50, 200); // 400x100x400 region
+                final BlockVector3 max = center.add(200, 50, 200);
+                
+                final CuboidRegion region = new CuboidRegion(BukkitAdapter.adapt(sourceWorld), min, max);
+
+                try (final EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(sourceWorld))) {
+                    // Create clipboard from the region
+                    final Clipboard clipboard = new BlockArrayClipboard(region);
+                    clipboard.setOrigin(center);
+                    
+                    final ForwardExtentCopy copy = new ForwardExtentCopy(editSession, region, clipboard, region.getMinimumPoint());
+                    copy.setCopyingEntities(true); // This will include armor stands
+                    Operations.complete(copy);
+
+                    // Save to schematic file
+                    final ClipboardFormat format = ClipboardFormats.findByFile(schematicFile);
+                    if (format == null) {
+                        // Default to .schem format if not determined
+                        final File newSchematicFile = new File(this.schematicsFolder, 
+                            arena.getSchematicFile().replaceAll("\\.[^.]*$", "") + ".schem");
+                        arena.setSchematicFile(newSchematicFile.getName());
+                        this.saveArenas();
+                        
+                        try (final ClipboardWriter writer = BuiltInClipboardFormat.SPONGE_SCHEMATIC.getWriter(new FileOutputStream(newSchematicFile))) {
+                            writer.write(clipboard);
+                        }
+                    } else {
+                        try (final ClipboardWriter writer = format.getWriter(new FileOutputStream(schematicFile))) {
+                            writer.write(clipboard);
+                        }
+                    }
+                }
+
+                this.plugin.logInfo("Successfully saved arena schematic with armor stands: " + arenaName);
+                return true;
+
+            } catch (final Exception exception) {
+                this.plugin.logError("Failed to save arena schematic: " + arenaName, exception);
+                return false;
+            }
+        });
+    }
+
+    /**
      * Load an arena schematic into a specific world
      */
     private CompletableFuture<Boolean> loadArenaInWorld(final String arenaName, final World targetWorld) {
@@ -183,16 +251,13 @@ public final class ArenaManager {
                         final Operation operation = new ClipboardHolder(clipboard)
                                 .createPaste(editSession)
                                 .to(BlockVector3.at(0, 100, 0))
+                                .copyEntities(true) // This will paste armor stands from schematic
                                 .build();
 
                         Operations.complete(operation);
                         editSession.flushSession();
                     }
                 }
-
-                // Scan for spawn points
-                // Always scan spawn points when loading arena
-                // TODO:: Scan for armor stand -= this.scanSpawnPoints(arena, targetWorld);
 
                 this.currentArena = arena;
 

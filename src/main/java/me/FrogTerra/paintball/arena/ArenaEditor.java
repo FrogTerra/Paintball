@@ -103,13 +103,13 @@ public final class ArenaEditor {
             }
 
             if (save) {
-                // Save spawn points from armor stands
-                this.saveSpawnPointsFromArmorStands(arenaName);
+                // Save the entire arena including armor stands to schematic
+                this.saveArenaWithArmorStands(arenaName);
                 player.sendMessage(MessageUtils.parseMessage("<green>Arena saved successfully!"));
+            } else {
+                // Clean up armor stands without saving
+                this.clearArmorStands(arenaName);
             }
-
-            // Clean up armor stands
-            this.clearArmorStands(arenaName);
 
             // Remove from editing
             this.editingPlayers.remove(player.getUniqueId());
@@ -311,50 +311,31 @@ public final class ArenaEditor {
     }
 
     /**
-     * Save spawn points from armor stands back to arena
+     * Save the entire arena including armor stands to schematic file
      */
-    private void saveSpawnPointsFromArmorStands(final String arenaName) {
+    private void saveArenaWithArmorStands(final String arenaName) {
         final Arena arena = this.plugin.getArenaManager().getArenas().get(arenaName);
         if (arena == null) {
+            this.plugin.logError("Arena not found for saving: " + arenaName);
             return;
         }
 
-        // Clear existing spawn points
-        for (final SpawnPointType spawnType : SpawnPointType.values()) {
-            this.clearSpawnsByType(arena, spawnType);
-        }
-
-        // Get armor stands for this arena
-        final Set<ArmorStand> armorStands = this.arenaArmorStands.get(arenaName);
-        if (armorStands == null) {
+        final World editorWorld = this.plugin.getWorldManager().getArenaEditorWorld();
+        if (editorWorld == null) {
+            this.plugin.logError("Editor world not available for saving arena");
             return;
         }
 
-        // Convert armor stand locations back to spawn points
-        for (final ArmorStand armorStand : armorStands) {
-            final String spawnTypeStr = armorStand.getPersistentDataContainer().get(
-                new NamespacedKey(this.plugin, "spawn_type"), 
-                org.bukkit.persistence.PersistentDataType.STRING
-            );
-            
-            if (spawnTypeStr != null) {
-                try {
-                    final SpawnPointType spawnType = SpawnPointType.valueOf(spawnTypeStr);
-                    final Location location = armorStand.getLocation();
-                    
-                    // Create location without world reference for storage
-                    final Location spawnLocation = new Location(null, location.getX(), location.getY(), location.getZ(),
-                            location.getYaw(), location.getPitch());
-                    
-                    this.addSpawnByType(arena, spawnType, spawnLocation);
-                } catch (final IllegalArgumentException e) {
-                    this.plugin.logError("Invalid spawn type in armor stand: " + spawnTypeStr);
-                }
+        // Save the arena with armor stands using ArenaManager
+        this.plugin.getArenaManager().saveArenaSchematic(arenaName, editorWorld).thenAccept(success -> {
+            if (success) {
+                this.plugin.logInfo("Successfully saved arena with armor stands: " + arenaName);
+                // Clear armor stands after successful save
+                this.clearArmorStands(arenaName);
+            } else {
+                this.plugin.logError("Failed to save arena schematic: " + arenaName);
             }
-        }
-
-        // Save arena configuration
-        this.plugin.getArenaManager().saveArenas();
+        });
     }
 
     /**
@@ -408,17 +389,13 @@ public final class ArenaEditor {
     }
 
     /**
-     * Get all spawn points from armor stands for game start
+     * Scan for armor stands in the arena world and extract spawn points
      */
-    public Map<SpawnPointType, List<Location>> getSpawnPointsFromArmorStands(final String arenaName, final World gameWorld) {
+    public Map<SpawnPointType, List<Location>> scanArmorStandsForSpawns(final World gameWorld) {
         final Map<SpawnPointType, List<Location>> spawnPoints = new HashMap<>();
-        final Set<ArmorStand> armorStands = this.arenaArmorStands.get(arenaName);
         
-        if (armorStands == null) {
-            return spawnPoints;
-        }
-
-        for (final ArmorStand armorStand : armorStands) {
+        // Scan all armor stands in the game world
+        gameWorld.getEntitiesByClass(ArmorStand.class).forEach(armorStand -> {
             final String spawnTypeStr = armorStand.getPersistentDataContainer().get(
                 new NamespacedKey(this.plugin, "spawn_type"), 
                 org.bukkit.persistence.PersistentDataType.STRING
@@ -428,23 +405,43 @@ public final class ArenaEditor {
                 try {
                     final SpawnPointType spawnType = SpawnPointType.valueOf(spawnTypeStr);
                     final Location location = armorStand.getLocation().clone();
-                    location.setWorld(gameWorld);
                     
                     spawnPoints.computeIfAbsent(spawnType, k -> new ArrayList<>()).add(location);
+                    
+                    this.plugin.logInfo("Found spawn point: " + spawnType + " at " + 
+                        String.format("%.1f, %.1f, %.1f", location.getX(), location.getY(), location.getZ()));
+                        
                 } catch (final IllegalArgumentException e) {
                     this.plugin.logError("Invalid spawn type in armor stand: " + spawnTypeStr);
                 }
             }
-        }
+        });
         
         return spawnPoints;
     }
 
     /**
-     * Remove all arena armor stands after game starts
+     * Remove all spawn armor stands from the game world after extracting spawn points
      */
-    public void removeArenaArmorStands(final String arenaName) {
-        this.clearArmorStands(arenaName);
+    public void removeSpawnArmorStands(final World gameWorld) {
+        final List<ArmorStand> spawnArmorStands = new ArrayList<>();
+        
+        // Find all spawn armor stands
+        gameWorld.getEntitiesByClass(ArmorStand.class).forEach(armorStand -> {
+            final String spawnTypeStr = armorStand.getPersistentDataContainer().get(
+                new NamespacedKey(this.plugin, "spawn_type"), 
+                org.bukkit.persistence.PersistentDataType.STRING
+            );
+            
+            if (spawnTypeStr != null) {
+                spawnArmorStands.add(armorStand);
+            }
+        });
+        
+        // Remove all spawn armor stands
+        spawnArmorStands.forEach(ArmorStand::remove);
+        
+        this.plugin.logInfo("Removed " + spawnArmorStands.size() + " spawn armor stands from game world");
     }
 
     /**

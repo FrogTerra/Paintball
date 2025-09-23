@@ -6,6 +6,8 @@ import me.FrogTerra.paintball.arena.Arena;
 import me.FrogTerra.paintball.arena.ArenaEditor;
 import me.FrogTerra.paintball.item.ItemCreator;
 import me.FrogTerra.paintball.player.PlayerProfile;
+import me.FrogTerra.paintball.utility.MessageUtils;
+import org.bukkit.Location;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Material;
@@ -16,6 +18,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -106,8 +109,10 @@ public final class GameManager {
                     this.startGameTimer();
                     this.messagePlayersGameStart();
                     
-                    // Remove armor stands after getting spawn points
-                    this.plugin.getArenaManager().getArenaEditor().removeArenaArmorStands(arena.getName());
+                    // Remove spawn armor stands after teleporting players
+                    this.plugin.getArenaManager().getArenaEditor().removeSpawnArmorStands(
+                        this.plugin.getWorldManager().getArenaWorld()
+                    );
                 });
             } else {
                 this.plugin.logError("Failed to load arena for game: " + arena.getName());
@@ -122,11 +127,13 @@ public final class GameManager {
      * Teleport players to their respective spawn points
      */
     private void teleportPlayersToSpawns(final List<UUID> players) {
+        // Scan armor stands in the arena world for spawn points
         final Map<ArenaEditor.SpawnPointType, List<Location>> spawnPoints = 
-            this.plugin.getArenaManager().getArenaEditor().getSpawnPointsFromArmorStands(
-                this.currentArena.getName(), 
+            this.plugin.getArenaManager().getArenaEditor().scanArmorStandsForSpawns(
                 this.plugin.getWorldManager().getArenaWorld()
             );
+        
+        this.plugin.logInfo("Found spawn points for game: " + spawnPoints.size() + " types");
 
         for (final UUID playerId : players) {
             final Player player = Bukkit.getPlayer(playerId);
@@ -139,10 +146,14 @@ public final class GameManager {
                 final Location spawn = teamSpawns.get((int) (Math.random() * teamSpawns.size()));
                 player.teleport(spawn);
                 player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+                this.plugin.logInfo("Teleported " + player.getName() + " to " + team + " spawn at " + 
+                    String.format("%.1f, %.1f, %.1f", spawn.getX(), spawn.getY(), spawn.getZ()));
             } else {
                 this.plugin.logWarning("No spawn points found for team " + team + " in arena " + this.currentArena.getName());
                 // Fallback to arena center
-                player.teleport(new Location(this.plugin.getWorldManager().getArenaWorld(), 0, 100, 0));
+                final Location fallback = new Location(this.plugin.getWorldManager().getArenaWorld(), 0, 100, 0);
+                player.teleport(fallback);
+                this.plugin.logWarning("Used fallback spawn for " + player.getName());
             }
         }
     }
