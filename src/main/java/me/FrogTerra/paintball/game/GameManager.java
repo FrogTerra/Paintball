@@ -19,10 +19,12 @@ import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Manages the overall game flow and state
@@ -39,6 +41,7 @@ public final class GameManager {
     @Getter private final Map<UUID, GameTeam> playerTeams = new HashMap<>();
     @Getter private final Map<UUID, Integer> playerLives = new HashMap<>();
 
+    private boolean gameLoadedSuccessfully = false;
     private BukkitTask gameTask;
     private int gameTimeRemaining;
     private long gameStartTime;
@@ -58,6 +61,7 @@ public final class GameManager {
             this.currentArena = arena;
             this.gameState = GameState.ACTIVE;
             this.gameStartTime = System.currentTimeMillis();
+            this.gameLoadedSuccessfully = false;
 
             this.playerTeams.clear();
             this.playerLives.clear();
@@ -82,6 +86,9 @@ public final class GameManager {
                     this.plugin.getArenaManager().getArenaEditor().removeSpawnArmorStands(
                         this.plugin.getWorldManager().getArenaWorld()
                     );
+                    
+                    // Mark game as successfully loaded
+                    this.gameLoadedSuccessfully = true;
                 });
                 
                 return true;
@@ -99,9 +106,13 @@ public final class GameManager {
                             this.plugin.getArenaManager().getArenaEditor().removeSpawnArmorStands(
                                 this.plugin.getWorldManager().getArenaWorld()
                             );
+                            
+                            // Mark game as successfully loaded
+                            this.gameLoadedSuccessfully = true;
                         });
                     } else {
                         this.plugin.logError("Failed to load arena for game: " + arena.getName());
+                        // Game failed to load - do not save stats
                         this.endGame();
                     }
                 });
@@ -259,6 +270,13 @@ public final class GameManager {
             this.gameTask = null;
         }
 
+        // Save game statistics if game loaded successfully
+        if (this.gameLoadedSuccessfully) {
+            this.saveGameStatistics();
+        } else {
+            this.plugin.logWarning("Game did not load successfully - skipping stat saving");
+        }
+
         // Show game results and teleport players back to lobby
         Bukkit.getScheduler().runTaskLater(this.plugin, () -> {
             this.activePlayers.keySet().forEach(uuid -> {
@@ -274,6 +292,7 @@ public final class GameManager {
             this.gameState = GameState.WAITING;
             this.currentGamemode = null;
             this.currentArena = null;
+            this.gameLoadedSuccessfully = false;
             this.activePlayers.clear();
             this.playerTeams.clear();
             this.playerLives.clear();
@@ -320,6 +339,264 @@ public final class GameManager {
         player.getInventory().setChestplate(chestplate.getItemStack());
         player.getInventory().setLeggings(leggings.getItemStack());
         player.getInventory().setBoots(boots.getItemStack());
+    }
+
+    /**
+     * Save game statistics to player profiles
+     */
+    private void saveGameStatistics() {
+        if (this.currentGamemode == null) {
+            this.plugin.logWarning("Cannot save stats - no current gamemode");
+            return;
+        }
+
+        final long gameEndTime = System.currentTimeMillis();
+        final long gameDuration = gameEndTime - this.gameStartTime;
+        
+        this.plugin.logInfo("Saving game statistics for " + this.activePlayers.size() + " players");
+        
+        // Determine winners based on gamemode
+        final List<UUID> winners = this.determineWinners();
+        
+        // Save stats for each player
+        this.activePlayers.forEach((uuid, gameStats) -> {
+            final PlayerProfile profile = this.plugin.getPlayerManager().getPlayerProfile(uuid);
+            if (profile == null) {
+                this.plugin.logWarning("Could not find profile for player: " + uuid);
+                return;
+            }
+            
+            final boolean isWinner = winners.contains(uuid);
+            final Player player = Bukkit.getPlayer(uuid);
+            final String playerName = player != null ? player.getName() : "Unknown";
+            
+            // Update general statistics
+            profile.setTotalKills(profile.getTotalKills() + gameStats.getKills());
+            profile.setTotalDeaths(profile.getTotalDeaths() + gameStats.getDeaths());
+            profile.setTotalShots(profile.getTotalShots() + gameStats.getShots());
+            profile.setTotalGamesPlayed(profile.getTotalGamesPlayed() + 1);
+            profile.addPlayTime(gameDuration);
+            
+            if (isWinner) {
+                profile.setTotalWins(profile.getTotalWins() + 1);
+            } else {
+                profile.setTotalLosses(profile.getTotalLosses() + 1);
+            }
+            
+            // Update gamemode-specific statistics
+            final PlayerProfile.GameModeStats gameModeStats = profile.getGameModeStats(this.currentGamemode);
+            gameModeStats.setKills(gameModeStats.getKills() + gameStats.getKills());
+            gameModeStats.setDeaths(gameModeStats.getDeaths() + gameStats.getDeaths());
+            gameModeStats.setShots(gameModeStats.getShots() + gameStats.getShots());
+            gameModeStats.setGamesPlayed(gameModeStats.getGamesPlayed() + 1);
+            gameModeStats.setTotalPlayTime(gameModeStats.getTotalPlayTime() + gameDuration);
+            
+            if (isWinner) {
+                gameModeStats.setWins(gameModeStats.getWins() + 1);
+            } else {
+                gameModeStats.setLosses(gameModeStats.getLosses() + 1);
+            }
+            
+            // Update gamemode-specific stats (Flag Rush)
+            if (this.currentGamemode == Gamemode.FLAG_RUSH) {
+                // Flag captures and returns would be tracked during gameplay
+                // This is a placeholder for when those systems are implemented
+            }
+            
+            // Award experience based on performance
+            long experienceGained = this.calculateExperience(gameStats, isWinner);
+            profile.addExperience(experienceGained);
+            
+            // Award coins based on performance
+            long coinsGained = this.calculateCoins(gameStats, isWinner);
+            profile.addCoins(coinsGained);
+            
+            // Save the profile asynchronously
+            this.plugin.getPlayerManager().savePlayerProfile(profile);
+            
+            // Notify player of their performance
+            if (player != null) {
+                this.sendGameSummary(player, gameStats, isWinner, experienceGained, coinsGained);
+            }
+            
+            this.plugin.logInfo("Saved stats for " + playerName + " - K:" + gameStats.getKills() + 
+                               " D:" + gameStats.getDeaths() + " Winner:" + isWinner);
+        });
+    }
+    
+    /**
+     * Determine winners based on gamemode
+     */
+    private List<UUID> determineWinners() {
+        final List<UUID> winners = new ArrayList<>();
+        
+        switch (this.currentGamemode) {
+            case TEAM_DEATHMATCH -> {
+                // Team with most kills wins
+                final Map<GameTeam, Integer> teamKills = new HashMap<>();
+                
+                this.activePlayers.forEach((uuid, stats) -> {
+                    final GameTeam team = this.playerTeams.get(uuid);
+                    if (team != null) {
+                        teamKills.merge(team, stats.getKills(), Integer::sum);
+                    }
+                });
+                
+                final GameTeam winningTeam = teamKills.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+                
+                if (winningTeam != null) {
+                    this.playerTeams.entrySet().stream()
+                        .filter(entry -> entry.getValue() == winningTeam)
+                        .map(Map.Entry::getKey)
+                        .forEach(winners::add);
+                }
+            }
+            case FREE_FOR_ALL -> {
+                // Player with most kills wins
+                this.activePlayers.entrySet().stream()
+                    .max(Map.Entry.comparingByValue(Comparator.comparing(GameStats::getKills)))
+                    .map(Map.Entry::getKey)
+                    .ifPresent(winners::add);
+            }
+            case JUGGERNAUT -> {
+                // Juggernauts win if they survive, players win if they eliminate all juggernauts
+                final boolean juggernauts Survive = this.playerTeams.entrySet().stream()
+                    .anyMatch(entry -> entry.getValue() == GameTeam.JUGGERNAUT && 
+                             this.playerLives.getOrDefault(entry.getKey(), 0) > 0);
+                
+                if (juggernauts Survive) {
+                    // Juggernauts win
+                    this.playerTeams.entrySet().stream()
+                        .filter(entry -> entry.getValue() == GameTeam.JUGGERNAUT)
+                        .map(Map.Entry::getKey)
+                        .forEach(winners::add);
+                } else {
+                    // Players win
+                    this.playerTeams.entrySet().stream()
+                        .filter(entry -> entry.getValue() == GameTeam.PLAYERS)
+                        .map(Map.Entry::getKey)
+                        .forEach(winners::add);
+                }
+            }
+            case FLAG_RUSH -> {
+                // Team that captured the most flags wins (placeholder logic)
+                // This would need to be implemented with actual flag capture tracking
+                final Map<GameTeam, Integer> teamCaptures = new HashMap<>();
+                
+                this.activePlayers.forEach((uuid, stats) -> {
+                    final GameTeam team = this.playerTeams.get(uuid);
+                    if (team != null) {
+                        teamCaptures.merge(team, stats.getFlagCaptures(), Integer::sum);
+                    }
+                });
+                
+                final GameTeam winningTeam = teamCaptures.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+                
+                if (winningTeam != null) {
+                    this.playerTeams.entrySet().stream()
+                        .filter(entry -> entry.getValue() == winningTeam)
+                        .map(Map.Entry::getKey)
+                        .forEach(winners::add);
+                }
+            }
+        }
+        
+        return winners;
+    }
+    
+    /**
+     * Calculate experience gained based on performance
+     */
+    private long calculateExperience(final GameStats stats, final boolean isWinner) {
+        long experience = 0;
+        
+        // Base experience for participation
+        experience += 50;
+        
+        // Experience for kills
+        experience += stats.getKills() * 25;
+        
+        // Experience for flag actions (Flag Rush)
+        experience += stats.getFlagCaptures() * 100;
+        experience += stats.getFlagReturns() * 50;
+        
+        // Bonus for winning
+        if (isWinner) {
+            experience += 100;
+        }
+        
+        // Bonus for good K/D ratio
+        if (stats.getDeaths() > 0) {
+            final double kd = (double) stats.getKills() / stats.getDeaths();
+            if (kd >= 2.0) {
+                experience += 50;
+            } else if (kd >= 1.5) {
+                experience += 25;
+            }
+        } else if (stats.getKills() > 0) {
+            experience += 75; // No deaths bonus
+        }
+        
+        return experience;
+    }
+    
+    /**
+     * Calculate coins gained based on performance
+     */
+    private long calculateCoins(final GameStats stats, final boolean isWinner) {
+        long coins = 0;
+        
+        // Base coins for participation
+        coins += 25;
+        
+        // Coins for kills
+        coins += stats.getKills() * 10;
+        
+        // Coins for flag actions
+        coins += stats.getFlagCaptures() * 50;
+        coins += stats.getFlagReturns() * 25;
+        
+        // Bonus for winning
+        if (isWinner) {
+            coins += 50;
+        }
+        
+        return coins;
+    }
+    
+    /**
+     * Send game summary to player
+     */
+    private void sendGameSummary(final Player player, final GameStats stats, final boolean isWinner, 
+                                final long experienceGained, final long coinsGained) {
+        player.sendMessage(MessageUtils.parseMessage("<green><bold>===== GAME SUMMARY ====="));
+        player.sendMessage(MessageUtils.parseMessage("<yellow>Result: " + (isWinner ? "<green>VICTORY!" : "<red>DEFEAT")));
+        player.sendMessage(MessageUtils.parseMessage("<yellow>Gamemode: <white>" + this.currentGamemode.getDisplayName()));
+        player.sendMessage(MessageUtils.parseMessage("<yellow>Arena: <white>" + this.currentArena.getName()));
+        player.sendMessage(MessageUtils.parseMessage(""));
+        player.sendMessage(MessageUtils.parseMessage("<yellow>Performance:"));
+        player.sendMessage(MessageUtils.parseMessage("  <green>Kills: <white>" + stats.getKills()));
+        player.sendMessage(MessageUtils.parseMessage("  <red>Deaths: <white>" + stats.getDeaths()));
+        player.sendMessage(MessageUtils.parseMessage("  <blue>Shots: <white>" + stats.getShots()));
+        
+        if (this.currentGamemode == Gamemode.FLAG_RUSH) {
+            player.sendMessage(MessageUtils.parseMessage("  <gold>Flag Captures: <white>" + stats.getFlagCaptures()));
+            player.sendMessage(MessageUtils.parseMessage("  <aqua>Flag Returns: <white>" + stats.getFlagReturns()));
+        }
+        
+        final double kd = stats.getDeaths() > 0 ? (double) stats.getKills() / stats.getDeaths() : stats.getKills();
+        player.sendMessage(MessageUtils.parseMessage("  <purple>K/D Ratio: <white>" + String.format("%.2f", kd)));
+        player.sendMessage(MessageUtils.parseMessage(""));
+        player.sendMessage(MessageUtils.parseMessage("<yellow>Rewards:"));
+        player.sendMessage(MessageUtils.parseMessage("  <aqua>Experience: <white>+" + experienceGained));
+        player.sendMessage(MessageUtils.parseMessage("  <gold>Coins: <white>+" + coinsGained));
+        player.sendMessage(MessageUtils.parseMessage("<green><bold>========================"));
     }
 
     /**

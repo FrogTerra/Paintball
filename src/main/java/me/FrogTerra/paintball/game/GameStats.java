@@ -16,11 +16,46 @@ public class GameStats {
     private int deaths = 0;
     private int shots = 0;
 
-    // FFA Specific Stats
+    // Flag Rush Specific Stats
     private int flagCaptures = 0;
     private int flagReturns = 0;
 
-    private GameStats(UUID uuid) {
+    public GameStats(UUID uuid) {
         this.uuid = uuid;
+    }
+    
+    /**
+     * Add a kill to the stats
+     */
+    public void addKill() {
+        this.kills++;
+    }
+    
+    /**
+     * Add a death to the stats
+     */
+    public void addDeath() {
+        this.deaths++;
+    }
+    
+    /**
+     * Add a shot to the stats
+     */
+    public void addShot() {
+        this.shots++;
+    }
+    
+    /**
+     * Add a flag capture to the stats
+     */
+    public void addFlagCapture() {
+        this.flagCaptures++;
+    }
+    
+    /**
+     * Add a flag return to the stats
+     */
+    public void addFlagReturn() {
+        this.flagReturns++;
     }
 }

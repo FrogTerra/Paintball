@@ -2,7 +2,7 @@ package me.FrogTerra.paintball.player;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.bukkit.GameMode;
+import me.FrogTerra.paintball.game.Gamemode;
 
 import java.util.*;
 
@@ -30,7 +30,7 @@ public final class PlayerProfile {
     private int totalLosses = 0;
 
     // Gamemode-specific statistics
-    private final Map<GameMode, GameModeStats> gameModeStats = new HashMap<>();
+    private final Map<Gamemode, GameModeStats> gameModeStats = new HashMap<>();
 
     // Upgrades
     private int paintballCountLevel = 0;
@@ -63,7 +63,7 @@ public final class PlayerProfile {
         this.lastPlayed = System.currentTimeMillis();
 
         // Initialize gamemode stats
-        for (final GameMode gameMode : GameMode.values()) {
+        for (final Gamemode gameMode : Gamemode.values()) {
             this.gameModeStats.put(gameMode, new GameModeStats());
         }
 
@@ -74,7 +74,7 @@ public final class PlayerProfile {
     /**
      * Get gamemode-specific statistics
      */
-    public GameModeStats getGameModeStats(final GameMode gameMode) {
+    public GameModeStats getGameModeStats(final Gamemode gameMode) {
         return this.gameModeStats.computeIfAbsent(gameMode, k -> new GameModeStats());
     }
 
