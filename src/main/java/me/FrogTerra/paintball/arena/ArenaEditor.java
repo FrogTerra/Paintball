@@ -451,8 +451,8 @@ public final class ArenaEditor {
      * Enumeration of spawn point types
      */
     public enum SpawnPointType {
-        RED_SPAWN("Red Team Spawn", Material.RED_CONCRETE, Color.RED, Set.of(Gamemode.TEAM_DEATHMATCH, Gamemode.FLAG_RUSH)),
-        BLUE_SPAWN("Blue Team Spawn", Material.BLUE_CONCRETE, Color.BLUE, Set.of(Gamemode.TEAM_DEATHMATCH, Gamemode.FLAG_RUSH)),
+        RED_SPAWN("Red Team Spawn", Material.RED_CONCRETE, Color.RED, Set.of(Gamemode.TEAM_DEATHMATCH, Gamemode.FLAG_RUSH, Gamemode.JUGGERNAUT)),
+        BLUE_SPAWN("Blue Team Spawn", Material.BLUE_CONCRETE, Color.BLUE, Set.of(Gamemode.TEAM_DEATHMATCH, Gamemode.FLAG_RUSH, Gamemode.JUGGERNAUT)),
         FREE_FOR_ALL_SPAWN("Free For All Spawn", Material.WHITE_CONCRETE, Color.WHITE, Set.of(Gamemode.FREE_FOR_ALL)),
         FLAG_RED_SPAWN("Red Flag Spawn", Material.RED_BANNER, Color.RED, Set.of(Gamemode.FLAG_RUSH)),
         FLAG_BLUE_SPAWN("Blue Flag Spawn", Material.BLUE_BANNER, Color.BLUE, Set.of(Gamemode.FLAG_RUSH));

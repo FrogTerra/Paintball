@@ -2,3 +2,14 @@ name: Paintball
 version: '0.0.1'
 main: me.FrogTerra.paintball.Paintball
 api-version: '1.21'
+
+commands:
+  arena:
+    description: Arena management commands
+    usage: /arena <create|delete|list|edit|info|reload>
+    permission: paintball.admin
+
+permissions:
+  paintball.admin:
+    description: Access to admin commands
+    default: op

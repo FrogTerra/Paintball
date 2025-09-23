@@ -3,6 +3,7 @@ package me.FrogTerra.paintball.game;
 import lombok.Getter;
 import me.FrogTerra.paintball.Paintball;
 import me.FrogTerra.paintball.arena.Arena;
+import me.FrogTerra.paintball.arena.ArenaEditor;
 import me.FrogTerra.paintball.item.ItemCreator;
 import me.FrogTerra.paintball.player.PlayerProfile;
 import org.bukkit.Bukkit;
@@ -44,7 +45,7 @@ public final class GameManager {
     }
 
     /**
-     * Manages the overall game flow and state
+     * Start a game with the given parameters
      */
     public boolean startGame(final List<UUID> players, final Gamemode gamemode, final Arena arena) {
         if (this.gameState != GameState.WAITING) return false;
@@ -55,12 +56,17 @@ public final class GameManager {
         this.gameStartTime = System.currentTimeMillis();
 
         this.playerTeams.clear();
+        this.playerLives.clear();
+        this.activePlayers.clear();
+
+        // Initialize player stats
+        players.forEach(uuid -> this.activePlayers.put(uuid, new GameStats(uuid)));
 
         switch (currentGamemode) {
             case TEAM_DEATHMATCH, FLAG_RUSH -> {
                 for (int i = 0; i < players.size(); i++) {
                     final UUID uuid = players.get(i);
-                    final GameTeam team = (i % 2 == 0) ? GameTeam.RED:GameTeam.BLUE;
+                    final GameTeam team = (i % 2 == 0) ? GameTeam.RED : GameTeam.BLUE;
                     playerTeams.put(uuid, team);
                     playerLives.put(uuid, currentGamemode.getLives());
                     giveEquiptment(uuid, team);
@@ -82,20 +88,156 @@ public final class GameManager {
                     if (i < juggernautCount) {
                         this.playerTeams.put(playerId, GameTeam.JUGGERNAUT);
                         this.playerLives.put(playerId, 1);
+                        giveEquiptment(playerId, GameTeam.JUGGERNAUT);
                     } else {
                         this.playerTeams.put(playerId, GameTeam.PLAYERS);
                         this.playerLives.put(playerId, 3);
+                        giveEquiptment(playerId, GameTeam.PLAYERS);
                     }
                 }
             }
         }
 
-        // Teleport players to arena respective spawn
+        // Load arena and get spawn points from armor stands
+        this.plugin.getArenaManager().loadArena(arena.getName()).thenAccept(success -> {
+            if (success) {
+                Bukkit.getScheduler().runTask(this.plugin, () -> {
+                    this.teleportPlayersToSpawns(players);
+                    this.startGameTimer();
+                    this.messagePlayersGameStart();
+                    
+                    // Remove armor stands after getting spawn points
+                    this.plugin.getArenaManager().getArenaEditor().removeArenaArmorStands(arena.getName());
+                });
+            } else {
+                this.plugin.logError("Failed to load arena for game: " + arena.getName());
+                this.endGame();
+            }
+        });
 
-        // Start game timer
-
-        // Message players
         return true;
+    }
+
+    /**
+     * Teleport players to their respective spawn points
+     */
+    private void teleportPlayersToSpawns(final List<UUID> players) {
+        final Map<ArenaEditor.SpawnPointType, List<Location>> spawnPoints = 
+            this.plugin.getArenaManager().getArenaEditor().getSpawnPointsFromArmorStands(
+                this.currentArena.getName(), 
+                this.plugin.getWorldManager().getArenaWorld()
+            );
+
+        for (final UUID playerId : players) {
+            final Player player = Bukkit.getPlayer(playerId);
+            if (player == null) continue;
+
+            final GameTeam team = this.playerTeams.get(playerId);
+            final List<Location> teamSpawns = this.getSpawnPointsForTeam(team, spawnPoints);
+
+            if (!teamSpawns.isEmpty()) {
+                final Location spawn = teamSpawns.get((int) (Math.random() * teamSpawns.size()));
+                player.teleport(spawn);
+                player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+            } else {
+                this.plugin.logWarning("No spawn points found for team " + team + " in arena " + this.currentArena.getName());
+                // Fallback to arena center
+                player.teleport(new Location(this.plugin.getWorldManager().getArenaWorld(), 0, 100, 0));
+            }
+        }
+    }
+
+    /**
+     * Get spawn points for a specific team
+     */
+    private List<Location> getSpawnPointsForTeam(final GameTeam team, final Map<ArenaEditor.SpawnPointType, List<Location>> spawnPoints) {
+        return switch (team) {
+            case RED -> spawnPoints.getOrDefault(ArenaEditor.SpawnPointType.RED_SPAWN, new ArrayList<>());
+            case BLUE -> spawnPoints.getOrDefault(ArenaEditor.SpawnPointType.BLUE_SPAWN, new ArrayList<>());
+            case FREE -> spawnPoints.getOrDefault(ArenaEditor.SpawnPointType.FREE_FOR_ALL_SPAWN, new ArrayList<>());
+            case JUGGERNAUT -> spawnPoints.getOrDefault(ArenaEditor.SpawnPointType.RED_SPAWN, new ArrayList<>());
+            case PLAYERS -> spawnPoints.getOrDefault(ArenaEditor.SpawnPointType.BLUE_SPAWN, new ArrayList<>());
+        };
+    }
+
+    /**
+     * Start the game timer
+     */
+    private void startGameTimer() {
+        this.gameTimeRemaining = this.currentGamemode.getDuration();
+        
+        this.gameTask = Bukkit.getScheduler().runTaskTimer(this.plugin, () -> {
+            this.gameTimeRemaining--;
+            
+            if (this.gameTimeRemaining <= 0) {
+                this.endGame();
+            } else if (this.gameTimeRemaining % 60 == 0 || this.gameTimeRemaining <= 10) {
+                // Broadcast time remaining
+                final String timeMsg = "<yellow>Time remaining: <white>" + this.gameTimeRemaining + "s";
+                this.activePlayers.keySet().forEach(uuid -> {
+                    final Player player = Bukkit.getPlayer(uuid);
+                    if (player != null) {
+                        player.sendMessage(MessageUtils.parseMessage(timeMsg));
+                    }
+                });
+            }
+        }, 20L, 20L); // Run every second
+    }
+
+    /**
+     * Message players that the game has started
+     */
+    private void messagePlayersGameStart() {
+        final String startMsg = "<green><bold>Game Started! <yellow>" + this.currentGamemode.getDisplayName() + 
+                               " <gray>on <white>" + this.currentArena.getName();
+        
+        this.activePlayers.keySet().forEach(uuid -> {
+            final Player player = Bukkit.getPlayer(uuid);
+            if (player != null) {
+                player.sendMessage(MessageUtils.parseMessage(startMsg));
+                player.sendTitle(
+                    MessageUtils.stripColors(MessageUtils.parseMessage("<green><bold>GAME START!")),
+                    MessageUtils.stripColors(MessageUtils.parseMessage("<yellow>" + this.currentGamemode.getDisplayName())),
+                    10, 40, 10
+                );
+            }
+        });
+    }
+
+    /**
+     * End the current game
+     */
+    public void endGame() {
+        if (this.gameState != GameState.ACTIVE) return;
+
+        this.gameState = GameState.ENDING;
+
+        // Cancel game timer
+        if (this.gameTask != null) {
+            this.gameTask.cancel();
+            this.gameTask = null;
+        }
+
+        // Show game results and teleport players back to lobby
+        Bukkit.getScheduler().runTaskLater(this.plugin, () -> {
+            this.activePlayers.keySet().forEach(uuid -> {
+                final Player player = Bukkit.getPlayer(uuid);
+                if (player != null) {
+                    this.plugin.getWorldManager().teleportToLobby(player);
+                    player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+                    player.getInventory().clear();
+                }
+            });
+
+            // Reset game state
+            this.gameState = GameState.WAITING;
+            this.currentGamemode = null;
+            this.currentArena = null;
+            this.activePlayers.clear();
+            this.playerTeams.clear();
+            this.playerLives.clear();
+
+        }, 100L); // 5 second delay
     }
 
     private void giveEquiptment(UUID uuid, GameTeam team) {
@@ -175,6 +317,4 @@ public final class GameManager {
             case PLAYERS -> Material.GREEN_CONCRETE; // Non-juggernaut players
         };
     }
-
-
 }

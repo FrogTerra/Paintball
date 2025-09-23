@@ -36,10 +36,20 @@ public final class WorldManager {
         String arenaWorldName = "arena";
         this.arenaWorld = this.createVoidWorld(arenaWorldName);
         if (this.arenaWorld != null) {
-            this.setuparenaWorld();
-            this.plugin.logInfo("Lobby world '" + arenaWorldName + "' ready");
+            this.setupArenaWorld();
+            this.plugin.logInfo("Arena world '" + arenaWorldName + "' ready");
         } else {
-            this.plugin.logError("Failed to create lobby world: " + arenaWorldName);
+            this.plugin.logError("Failed to create arena world: " + arenaWorldName);
+        }
+
+        // Create arena editor world
+        String arenaEditorWorldName = "arena_editor";
+        this.arenaEditorWorld = this.createVoidWorld(arenaEditorWorldName);
+        if (this.arenaEditorWorld != null) {
+            this.setupArenaEditorWorld();
+            this.plugin.logInfo("Arena editor world '" + arenaEditorWorldName + "' ready");
+        } else {
+            this.plugin.logError("Failed to create arena editor world: " + arenaEditorWorldName);
         }
     }
 
@@ -136,7 +146,7 @@ public final class WorldManager {
     /**
      * Setup arena world properties
      */
-    private void setuparenaWorld() {
+    private void setupArenaWorld() {
         if (this.arenaWorld == null) return;
 
         try {
@@ -162,6 +172,38 @@ public final class WorldManager {
 
         } catch (final Exception exception) {
             this.plugin.logError("Failed to setup arena world", exception);
+        }
+    }
+
+    /**
+     * Setup arena editor world properties
+     */
+    private void setupArenaEditorWorld() {
+        if (this.arenaEditorWorld == null) return;
+
+        try {
+            this.arenaEditorWorld.setTime(6000); // Noon
+            this.arenaEditorWorld.setStorm(false);
+            this.arenaEditorWorld.setThundering(false);
+            this.arenaEditorWorld.setWeatherDuration(0);
+
+            // Set game rules for arena editor
+            this.setGameRule(this.arenaEditorWorld, "doDaylightCycle", "false");
+            this.setGameRule(this.arenaEditorWorld, "doWeatherCycle", "false");
+            this.setGameRule(this.arenaEditorWorld, "doMobSpawning", "false");
+            this.setGameRule(this.arenaEditorWorld, "keepInventory", "true");
+            this.setGameRule(this.arenaEditorWorld, "showDeathMessages", "false");
+            this.setGameRule(this.arenaEditorWorld, "doTileDrops", "false");
+            this.setGameRule(this.arenaEditorWorld, "mobGriefing", "false");
+            this.setGameRule(this.arenaEditorWorld, "announceAdvancements", "false");
+            this.setGameRule(this.arenaEditorWorld, "doFireTick", "false");
+            this.setGameRule(this.arenaEditorWorld, "doImmediateRespawn", "true");
+
+            // Set spawn location high up for void worlds
+            this.arenaEditorWorld.setSpawnLocation(0, 100, 0);
+
+        } catch (final Exception exception) {
+            this.plugin.logError("Failed to setup arena editor world", exception);
         }
     }
 
@@ -198,6 +240,16 @@ public final class WorldManager {
             if (this.lobbyWorld != null) {
                 this.lobbyWorld.save();
                 this.plugin.logInfo("Saved lobby world");
+            }
+
+            if (this.arenaWorld != null) {
+                this.arenaWorld.save();
+                this.plugin.logInfo("Saved arena world");
+            }
+
+            if (this.arenaEditorWorld != null) {
+                this.arenaEditorWorld.save();
+                this.plugin.logInfo("Saved arena editor world");
             }
 
             this.plugin.logInfo("World cleanup completed successfully");

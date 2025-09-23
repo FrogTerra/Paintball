@@ -39,10 +39,12 @@ public final class ArenaManager {
     private final File arenasConfigFile;
 
     @Getter private final Map<String, Arena> arenas = new HashMap<>();
+    @Getter private ArenaEditor arenaEditor;
     @Getter private Arena currentArena;
 
     public ArenaManager(Paintball plugin) {
         this.plugin = plugin;
+        this.arenaEditor = new ArenaEditor(plugin);
         this.gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .registerTypeAdapter(Location.class, new LocationAdapter())
@@ -94,6 +96,32 @@ public final class ArenaManager {
         }
 
         this.plugin.logInfo("Arena manager initialized with " + this.arenas.size() + " arenas");
+    }
+
+    /**
+     * Create a new arena
+     */
+    public boolean createArena(final String name, final String schematicFile) {
+        if (this.arenas.containsKey(name.toLowerCase())) {
+            return false;
+        }
+        
+        final Arena arena = new Arena(name, schematicFile);
+        this.arenas.put(name.toLowerCase(), arena);
+        this.saveArenas();
+        return true;
+    }
+
+    /**
+     * Delete an arena
+     */
+    public boolean deleteArena(final String name) {
+        final Arena removed = this.arenas.remove(name.toLowerCase());
+        if (removed != null) {
+            this.saveArenas();
+            return true;
+        }
+        return false;
     }
 
     public void saveArenas() {
@@ -255,5 +283,19 @@ public final class ArenaManager {
      */
     public CompletableFuture<Boolean> loadArenaInEditor(final String arenaName) {
         return this.loadArenaInWorld(arenaName, this.plugin.getWorldManager().getArenaEditorWorld());
+    }
+
+    /**
+     * Unload an arena from the arena world
+     */
+    public CompletableFuture<Boolean> unloadArena(final String arenaName) {
+        return this.unloadArenaInWorld(arenaName, this.plugin.getWorldManager().getArenaWorld());
+    }
+
+    /**
+     * Unload an arena from the arena editor world
+     */
+    public CompletableFuture<Boolean> unloadArenaFromEditor(final String arenaName) {
+        return this.unloadArenaInWorld(arenaName, this.plugin.getWorldManager().getArenaEditorWorld());
     }
 }
