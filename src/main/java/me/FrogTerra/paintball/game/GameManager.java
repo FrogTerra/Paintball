@@ -50,21 +50,71 @@ public final class GameManager {
     /**
      * Start a game with the given parameters
      */
-    public boolean startGame(final List<UUID> players, final Gamemode gamemode, final Arena arena) {
-        if (this.gameState != GameState.WAITING) return false;
+    public CompletableFuture<Boolean> startGame(final List<UUID> players, final Gamemode gamemode, final Arena arena) {
+        return CompletableFuture.supplyAsync(() -> {
+            if (this.gameState != GameState.WAITING) return false;
 
-        this.currentGamemode = gamemode;
-        this.currentArena = arena;
-        this.gameState = GameState.ACTIVE;
-        this.gameStartTime = System.currentTimeMillis();
+            this.currentGamemode = gamemode;
+            this.currentArena = arena;
+            this.gameState = GameState.ACTIVE;
+            this.gameStartTime = System.currentTimeMillis();
 
-        this.playerTeams.clear();
-        this.playerLives.clear();
-        this.activePlayers.clear();
+            this.playerTeams.clear();
+            this.playerLives.clear();
+            this.activePlayers.clear();
 
-        // Initialize player stats
-        players.forEach(uuid -> this.activePlayers.put(uuid, new GameStats(uuid)));
+            // Initialize player stats
+            players.forEach(uuid -> this.activePlayers.put(uuid, new GameStats(uuid)));
 
+            // Setup teams and equipment
+            this.setupTeamsAndEquipment(players);
+
+            // Check if arena is already preloaded
+            if (this.plugin.getArenaManager().isArenaPreloaded(arena.getName())) {
+                this.plugin.logInfo("Using preloaded arena: " + arena.getName());
+                
+                Bukkit.getScheduler().runTask(this.plugin, () -> {
+                    this.teleportPlayersToSpawns(players);
+                    this.startGameTimer();
+                    this.messagePlayersGameStart();
+                    
+                    // Remove spawn armor stands after teleporting players
+                    this.plugin.getArenaManager().getArenaEditor().removeSpawnArmorStands(
+                        this.plugin.getWorldManager().getArenaWorld()
+                    );
+                });
+                
+                return true;
+            } else {
+                // Load arena if not preloaded
+                this.plugin.logInfo("Loading arena for game: " + arena.getName());
+                this.plugin.getArenaManager().loadArena(arena.getName()).thenAccept(success -> {
+                    if (success) {
+                        Bukkit.getScheduler().runTask(this.plugin, () -> {
+                            this.teleportPlayersToSpawns(players);
+                            this.startGameTimer();
+                            this.messagePlayersGameStart();
+                            
+                            // Remove spawn armor stands after teleporting players
+                            this.plugin.getArenaManager().getArenaEditor().removeSpawnArmorStands(
+                                this.plugin.getWorldManager().getArenaWorld()
+                            );
+                        });
+                    } else {
+                        this.plugin.logError("Failed to load arena for game: " + arena.getName());
+                        this.endGame();
+                    }
+                });
+                
+                return true;
+            }
+        });
+    }
+
+    /**
+     * Setup teams and equipment for all players
+     */
+    private void setupTeamsAndEquipment(final List<UUID> players) {
         switch (currentGamemode) {
             case TEAM_DEATHMATCH, FLAG_RUSH -> {
                 for (int i = 0; i < players.size(); i++) {
@@ -101,26 +151,6 @@ public final class GameManager {
             }
         }
 
-        // Load arena and get spawn points from armor stands
-        this.plugin.getArenaManager().loadArena(arena.getName()).thenAccept(success -> {
-            if (success) {
-                Bukkit.getScheduler().runTask(this.plugin, () -> {
-                    this.teleportPlayersToSpawns(players);
-                    this.startGameTimer();
-                    this.messagePlayersGameStart();
-                    
-                    // Remove spawn armor stands after teleporting players
-                    this.plugin.getArenaManager().getArenaEditor().removeSpawnArmorStands(
-                        this.plugin.getWorldManager().getArenaWorld()
-                    );
-                });
-            } else {
-                this.plugin.logError("Failed to load arena for game: " + arena.getName());
-                this.endGame();
-            }
-        });
-
-        return true;
     }
 
     /**

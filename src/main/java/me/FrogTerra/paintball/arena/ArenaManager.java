@@ -44,7 +44,9 @@ public final class ArenaManager {
 
     @Getter private final Map<String, Arena> arenas = new HashMap<>();
     @Getter private ArenaEditor arenaEditor;
-    @Getter private Arena currentArena;
+    @Getter private Arena currentLoadedArena;
+    @Getter private boolean arenaPreloaded = false;
+    private String preloadedArenaName;
 
     public ArenaManager(Paintball plugin) {
         this.plugin = plugin;
@@ -259,7 +261,13 @@ public final class ArenaManager {
                     }
                 }
 
-                this.currentArena = arena;
+                this.currentLoadedArena = arena;
+                
+                // Mark as preloaded if this was a preload operation
+                if (targetWorld == this.plugin.getWorldManager().getArenaWorld()) {
+                    this.arenaPreloaded = true;
+                    this.preloadedArenaName = arenaName;
+                }
 
                 this.plugin.logInfo("Successfully loaded arena: " + arenaName);
                 return true;
@@ -325,7 +333,12 @@ public final class ArenaManager {
                 }
 
                 // Clear the current arena reference
-                this.currentArena = null;
+                if (targetWorld == this.plugin.getWorldManager().getArenaWorld()) {
+                    this.currentLoadedArena = null;
+                    this.arenaPreloaded = false;
+                    this.preloadedArenaName = null;
+                }
+                
                 this.plugin.logInfo("Successfully unloaded arena: " + arenaName);
                 return true;
 
@@ -362,5 +375,54 @@ public final class ArenaManager {
      */
     public CompletableFuture<Boolean> unloadArenaFromEditor(final String arenaName) {
         return this.unloadArenaInWorld(arenaName, this.plugin.getWorldManager().getArenaEditorWorld());
+    }
+
+    /**
+     * Pre-load an arena into the arena world to reduce game start lag
+     */
+    public CompletableFuture<Boolean> preloadArena(final String arenaName) {
+        return CompletableFuture.supplyAsync(() -> {
+            if (this.arenaPreloaded && arenaName.equalsIgnoreCase(this.preloadedArenaName)) {
+                this.plugin.logInfo("Arena " + arenaName + " is already preloaded");
+                return true;
+            }
+
+            // Unload current arena if one is loaded
+            if (this.arenaPreloaded && this.preloadedArenaName != null) {
+                this.plugin.logInfo("Unloading previously preloaded arena: " + this.preloadedArenaName);
+                this.unloadArena(this.preloadedArenaName).join();
+            }
+
+            this.plugin.logInfo("Pre-loading arena: " + arenaName);
+            return this.loadArena(arenaName).join();
+        });
+    }
+
+    /**
+     * Check if a specific arena is currently preloaded
+     */
+    public boolean isArenaPreloaded(final String arenaName) {
+        return this.arenaPreloaded && arenaName.equalsIgnoreCase(this.preloadedArenaName);
+    }
+
+    /**
+     * Get the name of the currently preloaded arena
+     */
+    public String getPreloadedArenaName() {
+        return this.preloadedArenaName;
+    }
+
+    /**
+     * Clear any preloaded arena
+     */
+    public CompletableFuture<Boolean> clearPreloadedArena() {
+        return CompletableFuture.supplyAsync(() -> {
+            if (!this.arenaPreloaded || this.preloadedArenaName == null) {
+                return true;
+            }
+
+            this.plugin.logInfo("Clearing preloaded arena: " + this.preloadedArenaName);
+            return this.unloadArena(this.preloadedArenaName).join();
+        });
     }
 }

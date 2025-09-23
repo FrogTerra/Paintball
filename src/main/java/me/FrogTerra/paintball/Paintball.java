@@ -3,6 +3,7 @@ package me.FrogTerra.paintball;
 import lombok.Getter;
 import me.FrogTerra.paintball.arena.ArenaManager;
 import me.FrogTerra.paintball.command.ArenaCommand;
+import me.FrogTerra.paintball.game.GameManager;
 import me.FrogTerra.paintball.item.ItemRegistery;
 import me.FrogTerra.paintball.listener.ArenaEditorListener;
 import me.FrogTerra.paintball.listener.PlayerListener;
@@ -27,6 +28,7 @@ public final class Paintball extends JavaPlugin {
     @Getter private WorldManager worldManager;
     @Getter private PlayerManager playerManager;
     @Getter private ArenaManager arenaManager;
+    @Getter private GameManager gameManager;
 
     @Getter
     private LobbyManager lobbyManager;
@@ -47,6 +49,7 @@ public final class Paintball extends JavaPlugin {
             worldManager = new WorldManager(this);
             playerManager = new PlayerManager(this);
             arenaManager = new ArenaManager(this);
+            gameManager = new GameManager(this);
             lobbyManager = new LobbyManager(this);
             levelManager = new LevelManager(this);
 

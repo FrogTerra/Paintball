@@ -74,6 +74,14 @@ public class ArenaCommand implements CommandExecutor, TabCompleter {
                 }
                 this.showArenaInfo(player, args[1]);
             }
+            case "preload" -> {
+                if (args.length < 2) {
+                    player.sendMessage(MessageUtils.parseMessage("<red>Usage: /arena preload <name>"));
+                    return true;
+                }
+                this.preloadArena(player, args[1]);
+            }
+            case "unload" -> this.unloadArena(player);
             case "reload" -> this.reloadArenas(player);
             default -> this.sendHelpMessage(player);
         }
@@ -153,6 +161,39 @@ public class ArenaCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(MessageUtils.parseMessage("<yellow>Valid: " + (arena.isValid() ? "<green>Yes" : "<red>No")));
     }
 
+    private void preloadArena(final Player player, final String name) {
+        final Arena arena = this.plugin.getArenaManager().getArenas().get(name.toLowerCase());
+        
+        if (arena == null) {
+            player.sendMessage(MessageUtils.parseMessage("<red>Arena '" + name + "' not found!"));
+            return;
+        }
+
+        player.sendMessage(MessageUtils.parseMessage("<yellow>Preloading arena: " + name + "..."));
+        
+        this.plugin.getArenaManager().preloadArena(name).thenAccept(success -> {
+            Bukkit.getScheduler().runTask(this.plugin, () -> {
+                if (success) {
+                    player.sendMessage(MessageUtils.parseMessage("<green>Successfully preloaded arena: " + name));
+                } else {
+                    player.sendMessage(MessageUtils.parseMessage("<red>Failed to preload arena: " + name));
+                }
+            });
+        });
+    }
+
+    private void unloadArena(final Player player) {
+        this.plugin.getArenaManager().clearPreloadedArena().thenAccept(success -> {
+            Bukkit.getScheduler().runTask(this.plugin, () -> {
+                if (success) {
+                    player.sendMessage(MessageUtils.parseMessage("<green>Successfully unloaded preloaded arena"));
+                } else {
+                    player.sendMessage(MessageUtils.parseMessage("<yellow>No arena was preloaded"));
+                }
+            });
+        });
+    }
+
     private void reloadArenas(final Player player) {
         // Save current arenas and reload from file
         this.plugin.getArenaManager().saveArenas();
@@ -166,19 +207,22 @@ public class ArenaCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(MessageUtils.parseMessage("<yellow>/arena list <gray>- List all arenas"));
         player.sendMessage(MessageUtils.parseMessage("<yellow>/arena edit <name> <gray>- Edit arena spawn points"));
         player.sendMessage(MessageUtils.parseMessage("<yellow>/arena info <name> <gray>- Show arena information"));
+        player.sendMessage(MessageUtils.parseMessage("<yellow>/arena preload <name> <gray>- Preload arena to reduce game start lag"));
+        player.sendMessage(MessageUtils.parseMessage("<yellow>/arena unload <gray>- Unload currently preloaded arena"));
         player.sendMessage(MessageUtils.parseMessage("<yellow>/arena reload <gray>- Reload arena configuration"));
     }
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("create", "delete", "list", "edit", "info", "reload")
+            return Arrays.asList("create", "delete", "list", "edit", "info", "preload", "unload", "reload")
                     .stream()
                     .filter(cmd -> cmd.toLowerCase().startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
 
-        if (args.length == 2 && (args[0].equalsIgnoreCase("delete") || args[0].equalsIgnoreCase("edit") || args[0].equalsIgnoreCase("info"))) {
+        if (args.length == 2 && (args[0].equalsIgnoreCase("delete") || args[0].equalsIgnoreCase("edit") || 
+                                 args[0].equalsIgnoreCase("info") || args[0].equalsIgnoreCase("preload"))) {
             return this.plugin.getArenaManager().getArenas().keySet()
                     .stream()
                     .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
