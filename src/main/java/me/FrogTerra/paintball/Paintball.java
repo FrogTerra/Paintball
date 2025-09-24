@@ -4,7 +4,6 @@ import lombok.Getter;
 import me.FrogTerra.paintball.arena.ArenaManager;
 import me.FrogTerra.paintball.command.ArenaCommand;
 import me.FrogTerra.paintball.game.GameManager;
-import me.FrogTerra.paintball.gui.GUI;
 import me.FrogTerra.paintball.item.ItemRegistery;
 import me.FrogTerra.paintball.listener.ArenaEditorListener;
 import me.FrogTerra.paintball.listener.PlayerListener;
@@ -62,7 +61,6 @@ public final class Paintball extends JavaPlugin {
             PluginManager pm = Bukkit.getServer().getPluginManager();
             pm.registerEvents(new PlayerListener(this), this);
             pm.registerEvents(new ArenaEditorListener(this), this);
-            pm.registerEvents(new GUI(GUI.Rows.ONE, net.kyori.adventure.text.Component.empty()), this);
             this.getLogger().info("Listeners Registered!");
 
         } catch (Exception exception) {

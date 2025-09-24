@@ -2,7 +2,6 @@ package me.FrogTerra.paintball.listener;
 
 import me.FrogTerra.paintball.Paintball;
 import me.FrogTerra.paintball.arena.ArenaEditor;
-import me.FrogTerra.paintball.gui.ArenaEditorGUI;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
@@ -52,15 +51,6 @@ public class ArenaEditorListener implements Listener {
                 if (event.getAction().isRightClick() && event.getClickedBlock() != null) {
                     final var location = event.getClickedBlock().getLocation().add(0.5, 1, 0.5);
                     this.arenaEditor.placeSpawnPoint(player, location);
-                }
-            }
-            case "open_gui" -> {
-                if (event.getAction().isRightClick()) {
-                    final String arenaName = this.arenaEditor.getPlayerEditingArena().get(player.getUniqueId());
-                    if (arenaName != null) {
-                        final ArenaEditorGUI gui = new ArenaEditorGUI(this.arenaEditor, arenaName);
-                        gui.open(player);
-                    }
                 }
             }
             case "save_exit" -> this.arenaEditor.exitEditorMode(player, true);
@@ -126,13 +116,6 @@ public class ArenaEditorListener implements Listener {
             event.setCancelled(true);
             
             switch (toolType) {
-                case "open_gui" -> {
-                    final String arenaName = this.arenaEditor.getPlayerEditingArena().get(player.getUniqueId());
-                    if (arenaName != null) {
-                        final ArenaEditorGUI gui = new ArenaEditorGUI(this.arenaEditor, arenaName);
-                        gui.open(player);
-                    }
-                }
                 case "save_exit" -> this.arenaEditor.exitEditorMode(player, true);
                 case "exit_no_save" -> this.arenaEditor.exitEditorMode(player, false);
                 default -> {
