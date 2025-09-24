@@ -191,18 +191,33 @@ public final class ArenaEditor {
      * Give editing tools to player
      */
     private void giveEditorTools(final Player player) {
+        // Clear inventory and give GUI access item
         player.getInventory().clear();
         
-        final SpawnPointType currentMode = this.playerSpawnMode.get(player.getUniqueId());
+        // Give GUI access item
+        final ItemStack guiItem = new ItemCreator(Material.CHEST)
+                .setDisplayName("<gold><bold>Arena Editor Menu")
+                .setLore(
+                        "<gray>Right-click to open the arena editor interface",
+                        "<gray>",
+                        "<green>✓ Select spawn point types",
+                        "<green>✓ Access placement tools",
+                        "<green>✓ Save or exit editor mode"
+                )
+                .setPersistentData("editor_tool", "open_gui")
+                .setRarity(ItemRarity.EPIC)
+                .build();
         
-        // Spawn point placement tool
+        player.getInventory().setItem(4, guiItem);
+        
+        // Give basic placement tool
         final ItemStack placementTool = new ItemCreator(Material.BLAZE_ROD)
                 .setDisplayName("<green><bold>Spawn Point Placer")
                 .setLore(
                         "<gray>Right-click to place spawn points",
                         "<gray>Left-click armor stands to remove them",
                         "<gray>",
-                        "<yellow>Current Mode: " + (currentMode != null ? currentMode.getDisplayName() : "None")
+                        "<yellow>Select a spawn type from the GUI first!"
                 )
                 .setPersistentData("editor_tool", "spawn_placer")
                 .setRarity(ItemRarity.EPIC)
@@ -210,44 +225,6 @@ public final class ArenaEditor {
                 .build();
         
         player.getInventory().setItem(0, placementTool);
-        
-        // Mode selection tools
-        int slot = 2;
-        for (final SpawnPointType spawnType : SpawnPointType.values()) {
-            final ItemStack modeItem = new ItemCreator(spawnType.getMaterial())
-                    .setDisplayName(spawnType.getDisplayName())
-                    .setLore(
-                            "<gray>Click to switch to this spawn mode",
-                            "<gray>Compatible with: " + String.join(", ", 
-                                spawnType.getCompatibleGamemodes().stream()
-                                    .map(Gamemode::getDisplayName)
-                                    .toArray(String[]::new))
-                    )
-                    .setPersistentData("editor_tool", "mode_" + spawnType.name().toLowerCase())
-                    .setRarity(currentMode == spawnType ? ItemRarity.RARE : ItemRarity.COMMON)
-                    .addItemFlags(ItemFlag.HIDE_ATTRIBUTES)
-                    .build();
-            
-            player.getInventory().setItem(slot++, modeItem);
-        }
-        
-        // Save and exit tools
-        final ItemStack saveItem = new ItemCreator(Material.EMERALD)
-                .setDisplayName("<green><bold>Save & Exit")
-                .setLore("<gray>Save changes and exit editor mode")
-                .setPersistentData("editor_tool", "save_exit")
-                .setRarity(ItemRarity.EPIC)
-                .build();
-        
-        final ItemStack exitItem = new ItemCreator(Material.BARRIER)
-                .setDisplayName("<red><bold>Exit Without Saving")
-                .setLore("<gray>Exit editor mode without saving changes")
-                .setPersistentData("editor_tool", "exit_no_save")
-                .setRarity(ItemRarity.EPIC)
-                .build();
-        
-        player.getInventory().setItem(7, saveItem);
-        player.getInventory().setItem(8, exitItem);
     }
 
     /**
