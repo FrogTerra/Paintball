@@ -182,7 +182,9 @@ public class ArenaCreationGUI extends GUI {
                 )
                 .setRarity(ItemRarity.UNCOMMON)
                 .build(), player -> {
-                    new GamemodeSelectionGUI(arenaName, this).open(player);
+                    final String finalArenaName = arenaName;
+                    final ArenaCreationGUI parentGUI = this;
+                    new GamemodeSelectionGUI(finalArenaName, parentGUI).open(player);
                 });
 
         // Display current gamemodes if editing
