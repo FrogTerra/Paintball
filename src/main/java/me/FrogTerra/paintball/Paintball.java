@@ -61,7 +61,12 @@ public final class Paintball extends JavaPlugin {
             PluginManager pm = Bukkit.getServer().getPluginManager();
             pm.registerEvents(new PlayerListener(this), this);
             pm.registerEvents(new ArenaEditorListener(this), this);
-            pm.registerEvents(new me.FrogTerra.paintball.gui.GUI(), this);
+            pm.registerEvents(new GUI() {
+                @Override
+                public void onSetItems() {
+                    // Empty implementation - this is just for event registration
+                }
+            }, this);
             this.getLogger().info("Listeners Registered!");
 
         } catch (Exception exception) {
