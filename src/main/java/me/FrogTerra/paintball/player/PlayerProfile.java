@@ -212,6 +212,22 @@ public final class PlayerProfile {
         private int losses = 0;
         private int gamesPlayed = 0;
         private long totalPlayTime = 0;
+        
+        // Flag Rush specific stats
+        private int flagCaptures = 0;
+        private int flagReturns = 0;
+        private int flagKills = 0; // Kills while carrying flag
+        private int flagCarrierKills = 0; // Kills of flag carriers
+        
+        // Juggernaut specific stats
+        private int juggernautKills = 0; // Kills as juggernaut
+        private int juggernautDeaths = 0; // Deaths as juggernaut
+        private int juggernautKillsAgainst = 0; // Kills against juggernauts
+        private int playerKills = 0; // Kills as regular player in juggernaut mode
+        private int playerDeaths = 0; // Deaths as regular player in juggernaut mode
+        private long juggernautSurvivalTime = 0; // Time survived as juggernaut (milliseconds)
+        private int juggernautGamesWon = 0; // Games won as juggernaut
+        private int playerGamesWon = 0; // Games won as regular player
 
         public double getKDRatio() {
             if (this.deaths == 0) {
@@ -225,6 +241,56 @@ public final class PlayerProfile {
                 return 0.0;
             }
             return (double) this.wins / this.gamesPlayed * 100;
+        }
+        
+        /**
+         * Get juggernaut-specific K/D ratio
+         */
+        public double getJuggernautKDRatio() {
+            if (this.juggernautDeaths == 0) {
+                return this.juggernautKills;
+            }
+            return (double) this.juggernautKills / this.juggernautDeaths;
+        }
+        
+        /**
+         * Get player-specific K/D ratio (in juggernaut mode)
+         */
+        public double getPlayerKDRatio() {
+            if (this.playerDeaths == 0) {
+                return this.playerKills;
+            }
+            return (double) this.playerKills / this.playerDeaths;
+        }
+        
+        /**
+         * Get flag capture efficiency (captures per game)
+         */
+        public double getFlagCaptureEfficiency() {
+            if (this.gamesPlayed == 0) {
+                return 0.0;
+            }
+            return (double) this.flagCaptures / this.gamesPlayed;
+        }
+        
+        /**
+         * Get flag return efficiency (returns per game)
+         */
+        public double getFlagReturnEfficiency() {
+            if (this.gamesPlayed == 0) {
+                return 0.0;
+            }
+            return (double) this.flagReturns / this.gamesPlayed;
+        }
+        
+        /**
+         * Get average juggernaut survival time in seconds
+         */
+        public double getAverageJuggernautSurvivalTime() {
+            if (this.juggernautGamesWon + this.juggernautDeaths == 0) {
+                return 0.0;
+            }
+            return (double) this.juggernautSurvivalTime / 1000.0; // Convert to seconds
         }
     }
 }
