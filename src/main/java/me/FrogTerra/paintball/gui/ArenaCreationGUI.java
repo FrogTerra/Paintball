@@ -182,9 +182,7 @@ public class ArenaCreationGUI extends GUI {
                 )
                 .setRarity(ItemRarity.UNCOMMON)
                 .build(), player -> {
-                    final String finalArenaName = arenaName;
-                    final ArenaCreationGUI parentGUI = this;
-                    new GamemodeSelectionGUI(finalArenaName, parentGUI).open(player);
+                    new GamemodeSelectionGUI(arenaName, this).open(player);
                 });
 
         // Display current gamemodes if editing
@@ -225,6 +223,7 @@ public class ArenaCreationGUI extends GUI {
 
         // Edit Spawn Points (only if arena exists)
         if (isEditing) {
+            final String finalArenaName = arenaName;
             setItem(38, new ItemCreator(Material.BLAZE_ROD)
                     .setDisplayName("<blue><bold>Edit Spawn Points")
                     .setLore(
@@ -238,12 +237,13 @@ public class ArenaCreationGUI extends GUI {
                     .addItemFlags(ItemFlag.HIDE_ATTRIBUTES)
                     .build(), player -> {
                         player.closeInventory();
-                        getPlugin().getArenaManager().getArenaEditor().enterEditorMode(player, arenaName);
+                        getPlugin().getArenaManager().getArenaEditor().enterEditorMode(player, finalArenaName);
                     });
         }
 
         // Toggle Enabled/Disabled (only if editing)
         if (isEditing && arena != null) {
+            final Arena finalArena = arena;
             setItem(39, new ItemCreator(arena.isEnabled() ? Material.LIME_DYE : Material.GRAY_DYE)
                     .setDisplayName(arena.isEnabled() ? "<green><bold>Enabled" : "<red><bold>Disabled")
                     .setLore(
@@ -255,10 +255,10 @@ public class ArenaCreationGUI extends GUI {
                     )
                     .setRarity(arena.isEnabled() ? ItemRarity.COMMON : ItemRarity.UNCOMMON)
                     .build(), player -> {
-                        arena.setEnabled(!arena.isEnabled());
+                        finalArena.setEnabled(!finalArena.isEnabled());
                         getPlugin().getArenaManager().saveArenas();
                         player.sendMessage(MessageUtils.parseMessage(
-                            arena.isEnabled() ? 
+                            finalArena.isEnabled() ? 
                                 "<green>Arena enabled!" :
                                 "<red>Arena disabled!"
                         ));
@@ -268,6 +268,7 @@ public class ArenaCreationGUI extends GUI {
 
         // Delete Arena (only if editing)
         if (isEditing) {
+            final String finalArenaName = arenaName;
             setItem(41, new ItemCreator(Material.TNT)
                     .setDisplayName("<red><bold>Delete Arena")
                     .setLore(
@@ -279,7 +280,7 @@ public class ArenaCreationGUI extends GUI {
                             "<yellow>Click to confirm deletion"
                     )
                     .setRarity(ItemRarity.EPIC)
-                    .build(), this::deleteArena);
+                    .build(), player -> deleteArena(player, finalArenaName));
         }
 
         // Cancel/Exit
@@ -342,7 +343,7 @@ public class ArenaCreationGUI extends GUI {
     /**
      * Delete arena with confirmation
      */
-    private void deleteArena(Player player) {
+    private void deleteArena(Player player, String arenaName) {
         new ConfirmationGUI(
             "Delete Arena: " + arenaName,
             "Are you sure you want to delete this arena?",
