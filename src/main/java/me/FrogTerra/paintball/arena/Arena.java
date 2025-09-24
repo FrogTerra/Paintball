@@ -7,7 +7,6 @@ import me.FrogTerra.paintball.game.Gamemode;
 import org.bukkit.Location;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -20,101 +19,99 @@ public final class Arena {
 
     @SerializedName("name")
     private String name;
-    
     @SerializedName("schematicFile")
     private String schematicFile;
-    
     @SerializedName("enabled")
-    private boolean enabled = false; // Disabled by default upon creation
-    
+    private boolean enabled = true;
     @SerializedName("compatibleGameModes")
-    private Set<Gamemode> compatibleGameModes = new HashSet<>();
+    private Set<Gamemode> compatibleGameModes;
 
-    // Team spawn points
+    // Spawn points based on banner colors
     @SerializedName("redSpawns")
     private List<Location> redSpawns = new ArrayList<>();
-    
     @SerializedName("blueSpawns")
     private List<Location> blueSpawns = new ArrayList<>();
-    
     @SerializedName("freeForAllSpawns")
     private List<Location> freeForAllSpawns = new ArrayList<>();
 
     // Flag spawn points for Flag Rush gamemode
     @SerializedName("redFlagSpawns")
     private List<Location> redFlagSpawns = new ArrayList<>();
-    
     @SerializedName("blueFlagSpawns")
     private List<Location> blueFlagSpawns = new ArrayList<>();
 
-    // Arena boundaries (optional)
+    // Arena boundaries
     @SerializedName("minBoundary")
     private Location minBoundary;
-    
     @SerializedName("maxBoundary")
     private Location maxBoundary;
 
     public Arena(final String name, final String schematicFile) {
         this.name = name;
         this.schematicFile = schematicFile;
-        this.enabled = false; // Disabled by default
-        this.compatibleGameModes = new HashSet<>();
     }
 
     /**
      * Check if arena is compatible with gamemode
      */
     public boolean isCompatible(final Gamemode gameMode) {
-        return this.enabled && 
-               this.compatibleGameModes != null && 
-               this.compatibleGameModes.contains(gameMode) &&
-               this.hasRequiredSpawns(gameMode);
+        return this.enabled && this.compatibleGameModes != null && this.compatibleGameModes.contains(gameMode);
     }
 
     /**
      * Get spawn points for a specific team
      */
-    public List<Location> getTeamSpawns(final SpawnType spawnType) {
-        return switch (spawnType) {
-            case RED_SPAWN -> this.redSpawns;
-            case BLUE_SPAWN -> this.blueSpawns;
-            case FREE_FOR_ALL_SPAWN -> this.freeForAllSpawns;
-            case RED_FLAG_SPAWN -> this.redFlagSpawns;
-            case BLUE_FLAG_SPAWN -> this.blueFlagSpawns;
+    public List<Location> getTeamSpawns(final ArenaTeam team) {
+        return switch (team) {
+            case RED -> this.redSpawns;
+            case BLUE -> this.blueSpawns;
+            case FREE_FOR_ALL -> this.freeForAllSpawns;
+        };
+    }
+
+    /**
+     * Get flag spawn points for a specific team
+     */
+    public List<Location> getFlagSpawns(final ArenaTeam team) {
+        return switch (team) {
+            case RED -> this.redFlagSpawns;
+            case BLUE -> this.blueFlagSpawns;
+            case FREE_FOR_ALL -> new ArrayList<>(); // No flags in FFA
         };
     }
 
     /**
      * Add a spawn point for a team
      */
-    public void addSpawn(final SpawnType spawnType, final Location location) {
-        if (location == null) return;
-        
+    public void addSpawn(final ArenaTeam team, final Location location) {
         // Create location without world reference for storage
         final Location spawnLocation = new Location(null, location.getX(), location.getY(), location.getZ(),
-                location.getYaw(), 0.0f); // Fixed pitch looking straight ahead
-        this.getTeamSpawns(spawnType).add(spawnLocation);
+                location.getYaw(), location.getPitch());
+        this.getTeamSpawns(team).add(spawnLocation);
     }
 
     /**
-     * Remove a spawn point
+     * Add a flag spawn point for a team
      */
-    public boolean removeSpawn(final SpawnType spawnType, final Location location) {
-        if (location == null) return false;
-        
-        final List<Location> spawns = this.getTeamSpawns(spawnType);
-        return spawns.removeIf(spawn -> 
-            Math.abs(spawn.getX() - location.getX()) < 0.5 &&
-            Math.abs(spawn.getY() - location.getY()) < 0.5 &&
-            Math.abs(spawn.getZ() - location.getZ()) < 0.5
-        );
+    public void addFlagSpawn(final ArenaTeam team, final Location location) {
+        // Create location without world reference for storage
+        final Location spawnLocation = new Location(null, location.getX(), location.getY(), location.getZ(),
+                location.getYaw(), location.getPitch());
+        this.getFlagSpawns(team).add(spawnLocation);
     }
 
     /**
      * Clear all spawn points for a team
      */
-    public void clearSpawns(final SpawnType spawnType) {
-        this.getTeamSpawns(spawnType).clear();
+    public void clearSpawns(final ArenaTeam team) {
+        this.getTeamSpawns(team).clear();
+    }
+
+    /**
+     * Clear all flag spawn points for a team
+     */
+    public void clearFlagSpawns(final ArenaTeam team) {
+        this.getFlagSpawns(team).clear();
     }
 
     /**
@@ -135,7 +132,7 @@ public final class Arena {
      * Check if location is within arena boundaries
      */
     public boolean isWithinBoundaries(final Location location) {
-        if (this.minBoundary == null || this.maxBoundary == null || location == null) {
+        if (this.minBoundary == null || this.maxBoundary == null) {
             return true; // No boundaries set
         }
 
@@ -148,11 +145,11 @@ public final class Arena {
      * Validate arena configuration
      */
     public boolean isValid() {
-        if (this.name == null || this.name.trim().isEmpty()) {
+        if (this.name == null || this.name.isEmpty()) {
             return false;
         }
 
-        if (this.schematicFile == null || this.schematicFile.trim().isEmpty()) {
+        if (this.schematicFile == null || this.schematicFile.isEmpty()) {
             return false;
         }
 
@@ -161,11 +158,8 @@ public final class Arena {
         }
 
         // Check if arena has required spawns for compatible gamemodes
-        for (final Gamemode gameMode : this.compatibleGameModes) {
-            if (!this.hasRequiredSpawns(gameMode)) {
-                return false;
-            }
-        }
+        for (final Gamemode gameMode : this.compatibleGameModes)
+            if (!this.hasRequiredSpawns(gameMode)) return false;
 
         return true;
     }
@@ -175,24 +169,19 @@ public final class Arena {
      */
     private boolean hasRequiredSpawns(final Gamemode gameMode) {
         return switch (gameMode) {
-            case TEAM_DEATHMATCH, JUGGERNAUT -> 
-                this.redSpawns.size() >= 2 && this.blueSpawns.size() >= 2;
-            case FREE_FOR_ALL -> 
-                this.freeForAllSpawns.size() >= gameMode.getMinPlayers();
-            case FLAG_RUSH -> 
-                this.redSpawns.size() >= 2 && this.blueSpawns.size() >= 2 && 
-                this.redFlagSpawns.size() >= 1 && this.blueFlagSpawns.size() >= 1;
+            case TEAM_DEATHMATCH, JUGGERNAUT -> this.redSpawns.size() >= 2 && this.blueSpawns.size() >= 2;
+            case FREE_FOR_ALL -> this.freeForAllSpawns.size() >= 2;
+            case FLAG_RUSH -> this.redSpawns.size() >= 2 && this.blueSpawns.size() >= 2 && 
+                             this.redFlagSpawns.size() >= 1 && this.blueFlagSpawns.size() >= 1;
         };
     }
 
     /**
-     * Arena spawn type enumeration
+     * Arena team enumeration
      */
-    public enum SpawnType {
-        RED_SPAWN,
-        BLUE_SPAWN,
-        FREE_FOR_ALL_SPAWN,
-        RED_FLAG_SPAWN,
-        BLUE_FLAG_SPAWN
+    public enum ArenaTeam {
+        RED,
+        BLUE,
+        FREE_FOR_ALL,
     }
 }
