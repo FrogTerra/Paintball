@@ -18,10 +18,12 @@ import org.bukkit.persistence.PersistentDataType;
  */
 public class ArenaEditorListener implements Listener {
 
+    private final Paintball plugin;
     private final ArenaEditor arenaEditor;
 
-    public ArenaEditorListener() {
-        this.arenaEditor = Paintball.getPlugin().getArenaManager().getArenaEditor();
+    public ArenaEditorListener(Paintball plugin) {
+        this.plugin = plugin;
+        this.arenaEditor = plugin.getArenaManager().getArenaEditor();
     }
 
     @EventHandler
@@ -34,7 +36,7 @@ public class ArenaEditorListener implements Listener {
         }
 
         final String toolType = item.getItemMeta().getPersistentDataContainer().get(
-            new NamespacedKey(Paintball.getPlugin(), "editor_tool"), 
+            new NamespacedKey(this.plugin, "editor_tool"), 
             PersistentDataType.STRING
         );
 
@@ -46,14 +48,9 @@ public class ArenaEditorListener implements Listener {
 
         switch (toolType) {
             case "spawn_placer" -> {
-                if (event.getAction().isRightClick()) {
-                    // Place spawn point at player location
-                    final var location = player.getLocation().clone();
-                    location.setPitch(0.0f); // Fixed pitch looking straight ahead
+                if (event.getAction().isRightClick() && event.getClickedBlock() != null) {
+                    final var location = event.getClickedBlock().getLocation().add(0.5, 1, 0.5);
                     this.arenaEditor.placeSpawnPoint(player, location);
-                } else if (event.getAction().isLeftClick()) {
-                    // Cycle spawn modes
-                    this.cycleSpawnMode(player);
                 }
             }
             case "save_exit" -> this.arenaEditor.exitEditorMode(player, true);
@@ -65,7 +62,7 @@ public class ArenaEditorListener implements Listener {
                     try {
                         final ArenaEditor.SpawnPointType spawnType = ArenaEditor.SpawnPointType.valueOf(spawnTypeName);
                         this.arenaEditor.changeSpawnMode(player, spawnType);
-                    } catch (final IllegalArgumentException exception) {
+                    } catch (final IllegalArgumentException e) {
                         player.sendMessage("Invalid spawn type: " + spawnTypeName);
                     }
                 }
@@ -85,7 +82,7 @@ public class ArenaEditorListener implements Listener {
 
         // Check if this is a spawn point armor stand
         final String spawnType = armorStand.getPersistentDataContainer().get(
-            new NamespacedKey(Paintball.getPlugin(), "spawn_type"), 
+            new NamespacedKey(this.plugin, "spawn_type"), 
             PersistentDataType.STRING
         );
 
@@ -111,7 +108,7 @@ public class ArenaEditorListener implements Listener {
         }
 
         final String toolType = item.getItemMeta().getPersistentDataContainer().get(
-            new NamespacedKey(Paintball.getPlugin(), "editor_tool"), 
+            new NamespacedKey(this.plugin, "editor_tool"), 
             PersistentDataType.STRING
         );
 
@@ -127,37 +124,12 @@ public class ArenaEditorListener implements Listener {
                         try {
                             final ArenaEditor.SpawnPointType spawnType = ArenaEditor.SpawnPointType.valueOf(spawnTypeName);
                             this.arenaEditor.changeSpawnMode(player, spawnType);
-                        } catch (final IllegalArgumentException exception) {
+                        } catch (final IllegalArgumentException e) {
                             player.sendMessage("Invalid spawn type: " + spawnTypeName);
                         }
                     }
                 }
             }
         }
-    }
-
-    /**
-     * Cycle through spawn modes
-     */
-    private void cycleSpawnMode(final Player player) {
-        final ArenaEditor.SpawnPointType currentMode = this.arenaEditor.getPlayerSpawnMode().get(player.getUniqueId());
-        if (currentMode == null) {
-            return;
-        }
-
-        final ArenaEditor.SpawnPointType[] modes = ArenaEditor.SpawnPointType.values();
-        int currentIndex = 0;
-        
-        for (int i = 0; i < modes.length; i++) {
-            if (modes[i] == currentMode) {
-                currentIndex = i;
-                break;
-            }
-        }
-        
-        final int nextIndex = (currentIndex + 1) % modes.length;
-        final ArenaEditor.SpawnPointType nextMode = modes[nextIndex];
-        
-        this.arenaEditor.changeSpawnMode(player, nextMode);
     }
 }

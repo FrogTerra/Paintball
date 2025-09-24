@@ -43,14 +43,14 @@ public final class ArenaManager {
     private final File arenasConfigFile;
 
     @Getter private final Map<String, Arena> arenas = new HashMap<>();
-    @Getter private final ArenaEditor arenaEditor;
+    @Getter private ArenaEditor arenaEditor;
     @Getter private Arena currentLoadedArena;
     @Getter private boolean arenaPreloaded = false;
     private String preloadedArenaName;
 
     public ArenaManager(Paintball plugin) {
         this.plugin = plugin;
-        this.arenaEditor = new ArenaEditor();
+        this.arenaEditor = new ArenaEditor(plugin);
         this.gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .registerTypeAdapter(Location.class, new LocationAdapter())
