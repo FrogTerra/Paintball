@@ -467,12 +467,15 @@ public class ArenaCreationGUI extends GUI {
             if (arena == null) {
                 // Create temporary arena for gamemode selection
                 arena = new Arena(arenaName, "temp");
-                arena.setCompatibleGameModes(new HashSet<>());
+                Set<Gamemode> defaultGamemodes = new HashSet<>();
+                defaultGamemodes.add(Gamemode.TEAM_DEATHMATCH); // Default to Team Deathmatch
+                arena.setCompatibleGameModes(defaultGamemodes);
             }
 
-            final Set<Gamemode> selectedGamemodes = arena.getCompatibleGameModes();
-            if (selectedGamemodes == null) {
+            Set<Gamemode> selectedGamemodes = arena.getCompatibleGameModes();
+            if (selectedGamemodes == null || selectedGamemodes.isEmpty()) {
                 selectedGamemodes = new HashSet<>();
+                selectedGamemodes.add(Gamemode.TEAM_DEATHMATCH); // Ensure at least one gamemode is selected
                 arena.setCompatibleGameModes(selectedGamemodes);
             }
 
@@ -495,12 +498,16 @@ public class ArenaCreationGUI extends GUI {
                         )
                         .setRarity(isSelected ? ItemRarity.RARE : ItemRarity.COMMON)
                         .build(), player -> {
-                            final Set<Gamemode> finalSelectedGamemodes = selectedGamemodes;
-                            if (finalSelectedGamemodes.contains(gamemode)) {
-                                finalSelectedGamemodes.remove(gamemode);
-                                player.sendMessage(MessageUtils.parseMessage("<red>Disabled " + gamemode.getDisplayName()));
+                            if (selectedGamemodes.contains(gamemode)) {
+                                // Prevent removing the last gamemode
+                                if (selectedGamemodes.size() > 1) {
+                                    selectedGamemodes.remove(gamemode);
+                                    player.sendMessage(MessageUtils.parseMessage("<red>Disabled " + gamemode.getDisplayName()));
+                                } else {
+                                    player.sendMessage(MessageUtils.parseMessage("<red>Cannot disable the last gamemode! At least one must be selected."));
+                                }
                             } else {
-                                finalSelectedGamemodes.add(gamemode);
+                                selectedGamemodes.add(gamemode);
                                 player.sendMessage(MessageUtils.parseMessage("<green>Enabled " + gamemode.getDisplayName()));
                             }
                             onSetItems();
@@ -518,11 +525,10 @@ public class ArenaCreationGUI extends GUI {
                     )
                     .setRarity(ItemRarity.EPIC)
                     .build(), player -> {
-                        final Set<Gamemode> finalSelectedGamemodes = selectedGamemodes;
                         // Save to existing arena or update parent
                         if (getPlugin().getArenaManager().getArenas().containsKey(arenaName.toLowerCase())) {
                             Arena existingArena = getPlugin().getArenaManager().getArenas().get(arenaName.toLowerCase());
-                            existingArena.setCompatibleGameModes(finalSelectedGamemodes);
+                            existingArena.setCompatibleGameModes(selectedGamemodes);
                             getPlugin().getArenaManager().saveArenas();
                         }
                         parentGUI.arena = arena;
