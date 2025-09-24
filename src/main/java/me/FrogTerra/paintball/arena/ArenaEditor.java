@@ -22,10 +22,16 @@ import java.util.concurrent.CompletableFuture;
  */
 public final class ArenaEditor {
 
+    private final Paintball plugin;
+    
     @Getter private final Set<UUID> editingPlayers = new HashSet<>();
     @Getter private final Map<UUID, String> playerEditingArena = new HashMap<>();
     @Getter private final Map<String, Set<ArmorStand>> arenaArmorStands = new HashMap<>();
     @Getter private final Map<UUID, SpawnPointType> playerSpawnMode = new HashMap<>();
+
+    public ArenaEditor(Paintball plugin) {
+        this.plugin = plugin;
+    }
 
     /**
      * Enter arena editor mode for a player
@@ -37,14 +43,14 @@ public final class ArenaEditor {
                 return false;
             }
 
-            final Arena arena = Paintball.getPlugin().getArenaManager().getArenas().get(arenaName.toLowerCase());
+            final Arena arena = this.plugin.getArenaManager().getArenas().get(arenaName.toLowerCase());
             if (arena == null) {
                 player.sendMessage(MessageUtils.parseMessage("<red>Arena not found: " + arenaName));
                 return false;
             }
 
             // Load arena into editor world
-            return Paintball.getPlugin().getArenaManager().loadArenaInEditor(arenaName).thenCompose(success -> {
+            return this.plugin.getArenaManager().loadArenaInEditor(arenaName).thenCompose(success -> {
                 if (!success) {
                     player.sendMessage(MessageUtils.parseMessage("<red>Failed to load arena into editor world!"));
                     return CompletableFuture.completedFuture(false);
@@ -52,10 +58,10 @@ public final class ArenaEditor {
 
                 return CompletableFuture.supplyAsync(() -> {
                     // Teleport player to editor world
-                    final World editorWorld = Paintball.getPlugin().getWorldManager().getArenaEditorWorld();
+                    final World editorWorld = this.plugin.getWorldManager().getArenaEditorWorld();
                     final Location editorSpawn = new Location(editorWorld, 0, 105, 0);
                     
-                    Bukkit.getScheduler().runTask(Paintball.getPlugin(), () -> {
+                    Bukkit.getScheduler().runTask(this.plugin, () -> {
                         player.teleport(editorSpawn);
                         player.setGameMode(GameMode.CREATIVE);
                         
@@ -72,7 +78,7 @@ public final class ArenaEditor {
                         
                         player.sendMessage(MessageUtils.parseMessage("<green>Entered arena editor mode for: <yellow>" + arenaName));
                         player.sendMessage(MessageUtils.parseMessage("<gray>Use the tools in your inventory to edit spawn points"));
-                        player.sendMessage(MessageUtils.parseMessage("<gray>Right-click air to place spawn points, left-click armor stands to remove them"));
+                        player.sendMessage(MessageUtils.parseMessage("<gray>Right-click to place spawn points, left-click armor stands to remove them"));
                     });
                     
                     return true;
@@ -111,8 +117,8 @@ public final class ArenaEditor {
             this.playerSpawnMode.remove(player.getUniqueId());
 
             // Teleport back to lobby
-            Bukkit.getScheduler().runTask(Paintball.getPlugin(), () -> {
-                Paintball.getPlugin().getWorldManager().teleportToLobby(player);
+            Bukkit.getScheduler().runTask(this.plugin, () -> {
+                this.plugin.getWorldManager().teleportToLobby(player);
                 player.setGameMode(GameMode.ADVENTURE);
                 player.getInventory().clear();
             });
@@ -193,9 +199,8 @@ public final class ArenaEditor {
         final ItemStack placementTool = new ItemCreator(Material.BLAZE_ROD)
                 .setDisplayName("<green><bold>Spawn Point Placer")
                 .setLore(
-                        "<gray>Right-click air to place spawn points",
+                        "<gray>Right-click to place spawn points",
                         "<gray>Left-click armor stands to remove them",
-                        "<gray>Left-click air to cycle spawn modes",
                         "<gray>",
                         "<yellow>Current Mode: " + (currentMode != null ? currentMode.getDisplayName() : "None")
                 )
@@ -270,7 +275,7 @@ public final class ArenaEditor {
         
         // Store spawn type in persistent data
         armorStand.getPersistentDataContainer().set(
-            new NamespacedKey(Paintball.getPlugin(), "spawn_type"), 
+            new NamespacedKey(this.plugin, "spawn_type"), 
             org.bukkit.persistence.PersistentDataType.STRING, 
             spawnType.name()
         );
@@ -309,26 +314,26 @@ public final class ArenaEditor {
      * Save the entire arena including armor stands to schematic file
      */
     private void saveArenaWithArmorStands(final String arenaName) {
-        final Arena arena = Paintball.getPlugin().getArenaManager().getArenas().get(arenaName);
+        final Arena arena = this.plugin.getArenaManager().getArenas().get(arenaName);
         if (arena == null) {
-            Paintball.getPlugin().logError("Arena not found for saving: " + arenaName);
+            this.plugin.logError("Arena not found for saving: " + arenaName);
             return;
         }
 
-        final World editorWorld = Paintball.getPlugin().getWorldManager().getArenaEditorWorld();
+        final World editorWorld = this.plugin.getWorldManager().getArenaEditorWorld();
         if (editorWorld == null) {
-            Paintball.getPlugin().logError("Editor world not available for saving arena");
+            this.plugin.logError("Editor world not available for saving arena");
             return;
         }
 
         // Save the arena with armor stands using ArenaManager
-        Paintball.getPlugin().getArenaManager().saveArenaSchematic(arenaName, editorWorld).thenAccept(success -> {
+        this.plugin.getArenaManager().saveArenaSchematic(arenaName, editorWorld).thenAccept(success -> {
             if (success) {
-                Paintball.getPlugin().logInfo("Successfully saved arena with armor stands: " + arenaName);
+                this.plugin.logInfo("Successfully saved arena with armor stands: " + arenaName);
                 // Clear armor stands after successful save
                 this.clearArmorStands(arenaName);
             } else {
-                Paintball.getPlugin().logError("Failed to save arena schematic: " + arenaName);
+                this.plugin.logError("Failed to save arena schematic: " + arenaName);
             }
         });
     }
@@ -357,6 +362,33 @@ public final class ArenaEditor {
     }
 
     /**
+     * Clear spawn points by type from arena
+     */
+    private void clearSpawnsByType(final Arena arena, final SpawnPointType spawnType) {
+        this.getSpawnsByType(arena, spawnType).clear();
+    }
+
+    /**
+     * Add spawn point by type to arena
+     */
+    private void addSpawnByType(final Arena arena, final SpawnPointType spawnType, final Location location) {
+        this.getSpawnsByType(arena, spawnType).add(location);
+    }
+
+    /**
+     * Create colored leather armor piece
+     */
+    private ItemStack createColoredLeatherArmor(final Material material, final Color color) {
+        final ItemStack armor = new ItemStack(material);
+        final LeatherArmorMeta meta = (LeatherArmorMeta) armor.getItemMeta();
+        if (meta != null) {
+            meta.setColor(color);
+            armor.setItemMeta(meta);
+        }
+        return armor;
+    }
+
+    /**
      * Scan for armor stands in the arena world and extract spawn points
      */
     public Map<SpawnPointType, List<Location>> scanArmorStandsForSpawns(final World gameWorld) {
@@ -365,7 +397,7 @@ public final class ArenaEditor {
         // Scan all armor stands in the game world
         gameWorld.getEntitiesByClass(ArmorStand.class).forEach(armorStand -> {
             final String spawnTypeStr = armorStand.getPersistentDataContainer().get(
-                new NamespacedKey(Paintball.getPlugin(), "spawn_type"), 
+                new NamespacedKey(this.plugin, "spawn_type"), 
                 org.bukkit.persistence.PersistentDataType.STRING
             );
             
@@ -376,11 +408,11 @@ public final class ArenaEditor {
                     
                     spawnPoints.computeIfAbsent(spawnType, k -> new ArrayList<>()).add(location);
                     
-                    Paintball.getPlugin().logInfo("Found spawn point: " + spawnType + " at " + 
+                    this.plugin.logInfo("Found spawn point: " + spawnType + " at " + 
                         String.format("%.1f, %.1f, %.1f", location.getX(), location.getY(), location.getZ()));
                         
-                } catch (final IllegalArgumentException exception) {
-                    Paintball.getPlugin().logError("Invalid spawn type in armor stand: " + spawnTypeStr);
+                } catch (final IllegalArgumentException e) {
+                    this.plugin.logError("Invalid spawn type in armor stand: " + spawnTypeStr);
                 }
             }
         });
@@ -397,7 +429,7 @@ public final class ArenaEditor {
         // Find all spawn armor stands
         gameWorld.getEntitiesByClass(ArmorStand.class).forEach(armorStand -> {
             final String spawnTypeStr = armorStand.getPersistentDataContainer().get(
-                new NamespacedKey(Paintball.getPlugin(), "spawn_type"), 
+                new NamespacedKey(this.plugin, "spawn_type"), 
                 org.bukkit.persistence.PersistentDataType.STRING
             );
             
@@ -409,20 +441,7 @@ public final class ArenaEditor {
         // Remove all spawn armor stands
         spawnArmorStands.forEach(ArmorStand::remove);
         
-        Paintball.getPlugin().logInfo("Removed " + spawnArmorStands.size() + " spawn armor stands from game world");
-    }
-
-    /**
-     * Create colored leather armor piece
-     */
-    private ItemStack createColoredLeatherArmor(final Material material, final Color color) {
-        final ItemStack armor = new ItemStack(material);
-        final LeatherArmorMeta meta = (LeatherArmorMeta) armor.getItemMeta();
-        if (meta != null) {
-            meta.setColor(color);
-            armor.setItemMeta(meta);
-        }
-        return armor;
+        this.plugin.logInfo("Removed " + spawnArmorStands.size() + " spawn armor stands from game world");
     }
 
     /**
