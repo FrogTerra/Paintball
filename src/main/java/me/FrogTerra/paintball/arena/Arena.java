@@ -49,7 +49,6 @@ public final class Arena {
     public Arena(final String name, final String schematicFile) {
         this.name = name;
         this.schematicFile = schematicFile;
-        this.enabled = false; // Automatically disable new arenas
     }
 
     /**

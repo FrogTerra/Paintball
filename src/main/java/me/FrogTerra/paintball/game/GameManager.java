@@ -397,31 +397,10 @@ public final class GameManager {
                 gameModeStats.setLosses(gameModeStats.getLosses() + 1);
             }
             
-            // Update gamemode-specific stats
+            // Update gamemode-specific stats (Flag Rush)
             if (this.currentGamemode == Gamemode.FLAG_RUSH) {
-                // Flag Rush specific stats
-                gameModeStats.setFlagCaptures(gameModeStats.getFlagCaptures() + gameStats.getFlagCaptures());
-                gameModeStats.setFlagReturns(gameModeStats.getFlagReturns() + gameStats.getFlagReturns());
-                gameModeStats.setFlagKills(gameModeStats.getFlagKills() + gameStats.getFlagKills());
-                gameModeStats.setFlagCarrierKills(gameModeStats.getFlagCarrierKills() + gameStats.getFlagCarrierKills());
-            } else if (this.currentGamemode == Gamemode.JUGGERNAUT) {
-                // Juggernaut specific stats
-                final GameTeam playerTeam = this.playerTeams.get(uuid);
-                if (playerTeam == GameTeam.JUGGERNAUT) {
-                    gameModeStats.setJuggernautKills(gameModeStats.getJuggernautKills() + gameStats.getJuggernautKills());
-                    gameModeStats.setJuggernautDeaths(gameModeStats.getJuggernautDeaths() + gameStats.getJuggernautDeaths());
-                    gameModeStats.setJuggernautSurvivalTime(gameModeStats.getJuggernautSurvivalTime() + gameStats.getJuggernautSurvivalTime());
-                    if (isWinner) {
-                        gameModeStats.setJuggernautGamesWon(gameModeStats.getJuggernautGamesWon() + 1);
-                    }
-                } else if (playerTeam == GameTeam.PLAYERS) {
-                    gameModeStats.setPlayerKills(gameModeStats.getPlayerKills() + gameStats.getPlayerKills());
-                    gameModeStats.setPlayerDeaths(gameModeStats.getPlayerDeaths() + gameStats.getPlayerDeaths());
-                    gameModeStats.setJuggernautKillsAgainst(gameModeStats.getJuggernautKillsAgainst() + gameStats.getJuggernautKillsAgainst());
-                    if (isWinner) {
-                        gameModeStats.setPlayerGamesWon(gameModeStats.getPlayerGamesWon() + 1);
-                    }
-                }
+                // Flag captures and returns would be tracked during gameplay
+                // This is a placeholder for when those systems are implemented
             }
             
             // Award experience based on performance
@@ -609,25 +588,6 @@ public final class GameManager {
         if (this.currentGamemode == Gamemode.FLAG_RUSH) {
             player.sendMessage(MessageUtils.parseMessage("  <gold>Flag Captures: <white>" + stats.getFlagCaptures()));
             player.sendMessage(MessageUtils.parseMessage("  <aqua>Flag Returns: <white>" + stats.getFlagReturns()));
-            if (stats.getFlagKills() > 0) {
-                player.sendMessage(MessageUtils.parseMessage("  <yellow>Flag Kills: <white>" + stats.getFlagKills()));
-            }
-            if (stats.getFlagCarrierKills() > 0) {
-                player.sendMessage(MessageUtils.parseMessage("  <orange>Flag Carrier Kills: <white>" + stats.getFlagCarrierKills()));
-            }
-        } else if (this.currentGamemode == Gamemode.JUGGERNAUT) {
-            final GameTeam playerTeam = this.playerTeams.get(player.getUniqueId());
-            if (playerTeam == GameTeam.JUGGERNAUT) {
-                player.sendMessage(MessageUtils.parseMessage("  <dark_purple>Juggernaut Kills: <white>" + stats.getJuggernautKills()));
-                if (stats.getJuggernautSurvivalTime() > 0) {
-                    long survivalSeconds = stats.getJuggernautSurvivalTime() / 1000;
-                    player.sendMessage(MessageUtils.parseMessage("  <dark_purple>Survival Time: <white>" + survivalSeconds + "s"));
-                }
-            } else if (playerTeam == GameTeam.PLAYERS) {
-                if (stats.getJuggernautKillsAgainst() > 0) {
-                    player.sendMessage(MessageUtils.parseMessage("  <green>Juggernaut Kills: <white>" + stats.getJuggernautKillsAgainst()));
-                }
-            }
         }
         
         final double kd = stats.getDeaths() > 0 ? (double) stats.getKills() / stats.getDeaths() : stats.getKills();

@@ -46,11 +46,11 @@ public class ArenaCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "create" -> {
-                if (args.length < 2) {
-                    player.sendMessage(MessageUtils.parseMessage("<red>Usage: /arena create <name> [schematic-file]"));
+                if (args.length < 3) {
+                    player.sendMessage(MessageUtils.parseMessage("<red>Usage: /arena create <name> <schematic-file>"));
                     return true;
                 }
-                this.openArenaCreationGUI(player, args[1]);
+                this.createArena(player, args[1], args[2]);
             }
             case "delete" -> {
                 if (args.length < 2) {
@@ -65,7 +65,7 @@ public class ArenaCommand implements CommandExecutor, TabCompleter {
                     player.sendMessage(MessageUtils.parseMessage("<red>Usage: /arena edit <name>"));
                     return true;
                 }
-                this.openArenaManagementGUI(player, args[1]);
+                this.editArena(player, args[1]);
             }
             case "info" -> {
                 if (args.length < 2) {
@@ -89,16 +89,13 @@ public class ArenaCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    private void openArenaCreationGUI(final Player player, final String name) {
-        new me.FrogTerra.paintball.gui.ArenaCreationGUI(name).open(player);
-    }
-
-    private void openArenaManagementGUI(final Player player, final String name) {
-        if (!this.plugin.getArenaManager().getArenas().containsKey(name.toLowerCase())) {
-            player.sendMessage(MessageUtils.parseMessage("<red>Arena '" + name + "' not found!"));
-            return;
+    private void createArena(final Player player, final String name, final String schematicFile) {
+        if (this.plugin.getArenaManager().createArena(name, schematicFile)) {
+            player.sendMessage(MessageUtils.parseMessage("<green>Arena '" + name + "' created successfully!"));
+            player.sendMessage(MessageUtils.parseMessage("<yellow>Use '/arena edit " + name + "' to set up spawn points."));
+        } else {
+            player.sendMessage(MessageUtils.parseMessage("<red>Arena '" + name + "' already exists!"));
         }
-        new me.FrogTerra.paintball.gui.ArenaCreationGUI(name).open(player);
     }
 
     private void deleteArena(final Player player, final String name) {
@@ -127,6 +124,10 @@ public class ArenaCommand implements CommandExecutor, TabCompleter {
                 status + " <yellow>" + arena.getName() + " <gray>(" + spawns + flags + ")"
             ));
         }
+    }
+
+    private void editArena(final Player player, final String name) {
+        this.plugin.getArenaManager().getArenaEditor().enterEditorMode(player, name);
     }
 
     private void showArenaInfo(final Player player, final String name) {
@@ -201,10 +202,10 @@ public class ArenaCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelpMessage(final Player player) {
         player.sendMessage(MessageUtils.parseMessage("<green><bold>Arena Commands:"));
-        player.sendMessage(MessageUtils.parseMessage("<yellow>/arena create <name> [schematic] <gray>- Create/manage an arena"));
+        player.sendMessage(MessageUtils.parseMessage("<yellow>/arena create <name> <schematic> <gray>- Create a new arena"));
         player.sendMessage(MessageUtils.parseMessage("<yellow>/arena delete <name> <gray>- Delete an arena"));
         player.sendMessage(MessageUtils.parseMessage("<yellow>/arena list <gray>- List all arenas"));
-        player.sendMessage(MessageUtils.parseMessage("<yellow>/arena edit <name> <gray>- Manage arena settings"));
+        player.sendMessage(MessageUtils.parseMessage("<yellow>/arena edit <name> <gray>- Edit arena spawn points"));
         player.sendMessage(MessageUtils.parseMessage("<yellow>/arena info <name> <gray>- Show arena information"));
         player.sendMessage(MessageUtils.parseMessage("<yellow>/arena preload <name> <gray>- Preload arena to reduce game start lag"));
         player.sendMessage(MessageUtils.parseMessage("<yellow>/arena unload <gray>- Unload currently preloaded arena"));
