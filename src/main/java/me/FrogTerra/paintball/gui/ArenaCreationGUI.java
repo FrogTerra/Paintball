@@ -482,7 +482,7 @@ public class ArenaCreationGUI extends GUI {
             // Display all gamemodes
             Gamemode[] gamemodes = Gamemode.values();
             for (int i = 0; i < gamemodes.length; i++) {
-                Gamemode gamemode = gamemodes[i];
+                final Gamemode gamemode = gamemodes[i];
                 boolean isSelected = selectedGamemodes.contains(gamemode);
                 
                 setItem(10 + i, new ItemCreator(isSelected ? Material.LIME_CONCRETE : Material.RED_CONCRETE)
@@ -498,19 +498,7 @@ public class ArenaCreationGUI extends GUI {
                         )
                         .setRarity(isSelected ? ItemRarity.RARE : ItemRarity.COMMON)
                         .build(), player -> {
-                            if (selectedGamemodes.contains(gamemode)) {
-                                // Prevent removing the last gamemode
-                                if (selectedGamemodes.size() > 1) {
-                                    selectedGamemodes.remove(gamemode);
-                                    player.sendMessage(MessageUtils.parseMessage("<red>Disabled " + gamemode.getDisplayName()));
-                                } else {
-                                    player.sendMessage(MessageUtils.parseMessage("<red>Cannot disable the last gamemode! At least one must be selected."));
-                                }
-                            } else {
-                                selectedGamemodes.add(gamemode);
-                                player.sendMessage(MessageUtils.parseMessage("<green>Enabled " + gamemode.getDisplayName()));
-                            }
-                            onSetItems();
+                            this.toggleGamemode(gamemode, player);
                         });
             }
 
@@ -521,18 +509,11 @@ public class ArenaCreationGUI extends GUI {
                             "<gray>Save gamemode selection and return",
                             "<gray>to arena management",
                             "",
-                            "<yellow>Selected: <white>" + selectedGamemodes.size() + " gamemodes"
+                            "<yellow>Selected: <white>" + arena.getCompatibleGameModes().size() + " gamemodes"
                     )
                     .setRarity(ItemRarity.EPIC)
                     .build(), player -> {
-                        // Save to existing arena or update parent
-                        if (getPlugin().getArenaManager().getArenas().containsKey(arenaName.toLowerCase())) {
-                            Arena existingArena = getPlugin().getArenaManager().getArenas().get(arenaName.toLowerCase());
-                            existingArena.setCompatibleGameModes(selectedGamemodes);
-                            getPlugin().getArenaManager().saveArenas();
-                        }
-                        parentGUI.arena = arena;
-                        parentGUI.open(player);
+                        this.saveAndReturn(player);
                     });
 
             // Cancel button
@@ -540,6 +521,43 @@ public class ArenaCreationGUI extends GUI {
                     .setDisplayName("<red><bold>Cancel")
                     .setLore("<gray>Return without saving changes")
                     .build(), player -> parentGUI.open(player));
+        }
+
+        /**
+         * Toggle a gamemode on/off for the arena
+         */
+        private void toggleGamemode(final Gamemode gamemode, final Player player) {
+            final Set<Gamemode> selectedGamemodes = arena.getCompatibleGameModes();
+            
+            if (selectedGamemodes.contains(gamemode)) {
+                // Prevent removing the last gamemode
+                if (selectedGamemodes.size() > 1) {
+                    selectedGamemodes.remove(gamemode);
+                    player.sendMessage(MessageUtils.parseMessage("<red>Disabled " + gamemode.getDisplayName()));
+                } else {
+                    player.sendMessage(MessageUtils.parseMessage("<red>Cannot disable the last gamemode! At least one must be selected."));
+                }
+            } else {
+                selectedGamemodes.add(gamemode);
+                player.sendMessage(MessageUtils.parseMessage("<green>Enabled " + gamemode.getDisplayName()));
+            }
+            
+            // Refresh the GUI
+            onSetItems();
+        }
+
+        /**
+         * Save gamemode selection and return to parent GUI
+         */
+        private void saveAndReturn(final Player player) {
+            // Save to existing arena or update parent
+            if (getPlugin().getArenaManager().getArenas().containsKey(arenaName.toLowerCase())) {
+                Arena existingArena = getPlugin().getArenaManager().getArenas().get(arenaName.toLowerCase());
+                existingArena.setCompatibleGameModes(arena.getCompatibleGameModes());
+                getPlugin().getArenaManager().saveArenas();
+            }
+            parentGUI.arena = arena;
+            parentGUI.open(player);
         }
     }
 
