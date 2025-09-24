@@ -470,7 +470,7 @@ public class ArenaCreationGUI extends GUI {
                 arena.setCompatibleGameModes(new HashSet<>());
             }
 
-            Set<Gamemode> selectedGamemodes = arena.getCompatibleGameModes();
+            final Set<Gamemode> selectedGamemodes = arena.getCompatibleGameModes();
             if (selectedGamemodes == null) {
                 selectedGamemodes = new HashSet<>();
                 arena.setCompatibleGameModes(selectedGamemodes);
@@ -495,11 +495,12 @@ public class ArenaCreationGUI extends GUI {
                         )
                         .setRarity(isSelected ? ItemRarity.RARE : ItemRarity.COMMON)
                         .build(), player -> {
-                            if (isSelected) {
-                                selectedGamemodes.remove(gamemode);
+                            final Set<Gamemode> finalSelectedGamemodes = selectedGamemodes;
+                            if (finalSelectedGamemodes.contains(gamemode)) {
+                                finalSelectedGamemodes.remove(gamemode);
                                 player.sendMessage(MessageUtils.parseMessage("<red>Disabled " + gamemode.getDisplayName()));
                             } else {
-                                selectedGamemodes.add(gamemode);
+                                finalSelectedGamemodes.add(gamemode);
                                 player.sendMessage(MessageUtils.parseMessage("<green>Enabled " + gamemode.getDisplayName()));
                             }
                             onSetItems();
@@ -517,10 +518,11 @@ public class ArenaCreationGUI extends GUI {
                     )
                     .setRarity(ItemRarity.EPIC)
                     .build(), player -> {
+                        final Set<Gamemode> finalSelectedGamemodes = selectedGamemodes;
                         // Save to existing arena or update parent
                         if (getPlugin().getArenaManager().getArenas().containsKey(arenaName.toLowerCase())) {
                             Arena existingArena = getPlugin().getArenaManager().getArenas().get(arenaName.toLowerCase());
-                            existingArena.setCompatibleGameModes(selectedGamemodes);
+                            existingArena.setCompatibleGameModes(finalSelectedGamemodes);
                             getPlugin().getArenaManager().saveArenas();
                         }
                         parentGUI.arena = arena;
